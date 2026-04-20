@@ -14,41 +14,45 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { NativeSelect } from "@/components/ui/native-select"
 
-type EmbedType = "both" | "buy" | "sell"
+type TradeSide = "buy" | "sell"
 type EmbedTheme = "light" | "dark"
+type EmbedLanguage = "en"
 type LoginMethod = "email" | "web3" | "ton"
 
+const tradeSideOptions: TradeSide[] = ["buy", "sell"]
+const languageOptions: EmbedLanguage[] = ["en"]
 const loginMethodOptions: LoginMethod[] = ["email", "web3", "ton"]
 
 interface Config {
   baseUrl: string
-  type: EmbedType
+  tradeSides: TradeSide[]
   theme: EmbedTheme
-  language: string
+  language: EmbedLanguage
   partner: string
   email: string
   loginMethods: LoginMethod[]
   width: string
   height: string
-  showBorder: boolean
 }
 
+const defaultBaseUrl =
+  process.env.NEXT_PUBLIC_EMBED_BASE_URL || "http://localhost:3000/embed"
+
 const defaultConfig: Config = {
-  baseUrl: "http://localhost:3000/embed",
-  type: "both",
+  baseUrl: defaultBaseUrl,
+  tradeSides: ["buy", "sell"],
   theme: "light",
   language: "en",
   partner: "",
   email: "",
   loginMethods: ["email"],
   width: "480px",
-  height: "720px",
-  showBorder: true,
+  height: "740px",
 }
 
 function buildUrl(config: Config): string {
   const params = new URLSearchParams()
-  if (config.type !== "both") params.set("type", config.type)
+  if (config.tradeSides.length === 1) params.set("type", config.tradeSides[0])
   if (config.theme) params.set("theme", config.theme)
   if (config.language && config.language !== "en")
     params.set("language", config.language)
@@ -85,6 +89,16 @@ export function EmbedPlayground() {
         ? prev.loginMethods.filter(m => m !== method)
         : [...prev.loginMethods, method]
       return { ...prev, loginMethods: next }
+    })
+  }
+
+  const toggleTradeSide = (side: TradeSide) => {
+    setConfig(prev => {
+      const has = prev.tradeSides.includes(side)
+      const next = has
+        ? prev.tradeSides.filter(s => s !== side)
+        : [...prev.tradeSides, side]
+      return { ...prev, tradeSides: next }
     })
   }
 
@@ -126,30 +140,63 @@ export function EmbedPlayground() {
               URL params
             </h3>
             <Field label="Type">
-              <NativeSelect
-                value={config.type}
-                onChange={e => update("type", e.target.value as EmbedType)}
-              >
-                <option value="both">both</option>
-                <option value="buy">buy</option>
-                <option value="sell">sell</option>
-              </NativeSelect>
+              <div className="flex flex-wrap gap-2">
+                {tradeSideOptions.map(side => {
+                  const active = config.tradeSides.includes(side)
+                  return (
+                    <button
+                      key={side}
+                      type="button"
+                      onClick={() => toggleTradeSide(side)}
+                      aria-pressed={active}
+                      className={
+                        active
+                          ? "rounded-md border border-primary bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground"
+                          : "rounded-md border border-input bg-transparent px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+                      }
+                    >
+                      {side}
+                    </button>
+                  )
+                })}
+              </div>
             </Field>
             <Field label="Theme">
-              <NativeSelect
-                value={config.theme}
-                onChange={e => update("theme", e.target.value as EmbedTheme)}
-              >
-                <option value="light">light</option>
-                <option value="dark">dark</option>
-              </NativeSelect>
+              <div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={config.theme === "dark"}
+                  onClick={() =>
+                    update("theme", config.theme === "dark" ? "light" : "dark")
+                  }
+                  className="inline-flex items-center gap-2 rounded-md border border-input bg-transparent px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted"
+                >
+                  <span
+                    aria-hidden="true"
+                    className={
+                      config.theme === "dark"
+                        ? "inline-block size-3 rounded-full bg-neutral-900 ring-1 ring-border"
+                        : "inline-block size-3 rounded-full bg-neutral-100 ring-1 ring-border"
+                    }
+                  />
+                  {config.theme}
+                </button>
+              </div>
             </Field>
             <Field label="Language">
-              <Input
+              <NativeSelect
                 value={config.language}
-                onChange={e => update("language", e.target.value)}
-                placeholder="en"
-              />
+                onChange={e =>
+                  update("language", e.target.value as EmbedLanguage)
+                }
+              >
+                {languageOptions.map(lang => (
+                  <option key={lang} value={lang}>
+                    {lang}
+                  </option>
+                ))}
+              </NativeSelect>
             </Field>
             <Field label="Partner">
               <Input
@@ -210,15 +257,6 @@ export function EmbedPlayground() {
                 />
               </Field>
             </div>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={config.showBorder}
-                onChange={e => update("showBorder", e.target.checked)}
-                className="size-4 rounded border-input"
-              />
-              <span>Show iframe border</span>
-            </label>
           </section>
 
           <div className="flex flex-wrap gap-2 pt-2">
@@ -258,7 +296,12 @@ export function EmbedPlayground() {
           </code>
         </CardHeader>
         <CardContent>
-          <div className="flex justify-center rounded-lg bg-muted/30 p-6">
+          <div
+            className="flex justify-center rounded-lg p-6"
+            style={{
+              backgroundColor: config.theme === "dark" ? "#0a0a0a" : "#ffffff",
+            }}
+          >
             <iframe
               key={iframeKey}
               src={url}
@@ -267,12 +310,10 @@ export function EmbedPlayground() {
                 width: config.width,
                 height: config.height,
                 maxWidth: "100%",
+                backgroundColor:
+                  config.theme === "dark" ? "#0a0a0a" : "#ffffff",
               }}
-              className={
-                config.showBorder
-                  ? "rounded-lg border border-border bg-background shadow-sm"
-                  : "rounded-lg bg-background"
-              }
+              className="rounded-lg"
               allow="storage-access; publickey-credentials-get *; publickey-credentials-create *; clipboard-read; clipboard-write; payment"
               sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-storage-access-by-user-activation allow-modals"
             />
