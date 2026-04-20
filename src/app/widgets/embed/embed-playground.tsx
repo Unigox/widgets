@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label"
 import { NativeSelect } from "@/components/ui/native-select"
 
 type EmbedType = "both" | "buy" | "sell"
-type EmbedTheme = "" | "minimal" | "dark"
+type EmbedTheme = "light" | "dark"
 type LoginMethod = "email" | "web3" | "ton"
 
 const loginMethodOptions: LoginMethod[] = ["email", "web3", "ton"]
@@ -36,7 +36,7 @@ interface Config {
 const defaultConfig: Config = {
   baseUrl: "http://localhost:3000/embed",
   type: "both",
-  theme: "",
+  theme: "light",
   language: "en",
   partner: "",
   email: "",
@@ -140,8 +140,7 @@ export function EmbedPlayground() {
                 value={config.theme}
                 onChange={e => update("theme", e.target.value as EmbedTheme)}
               >
-                <option value="">default</option>
-                <option value="minimal">minimal</option>
+                <option value="light">light</option>
                 <option value="dark">dark</option>
               </NativeSelect>
             </Field>

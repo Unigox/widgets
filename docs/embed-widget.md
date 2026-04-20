@@ -42,7 +42,7 @@ Passed to `UnigoxWidget.init(options)`.
 | `fiat`         | `string`                                     | no       | Pre-selected fiat (e.g. `"USD"`, `"EUR"`).                                                                                                                                                     |
 | `amount`       | `number`                                     | no       | Pre-filled amount.                                                                                                                                                                             |
 | `email`        | `string`                                     | no       | Prefill for auto-login.                                                                                                                                                                        |
-| `theme`        | `"minimal" \| "dark"`                        | no       | Visual theme. Defaults to `"minimal"`.                                                                                                                                                         |
+| `theme`        | `"light" \| "dark"`                          | no       | Visual theme. Defaults to `"light"`.                                                                                                                                                           |
 | `language`     | `string`                                     | no       | Language code. Default `"en"`.                                                                                                                                                                 |
 | `loginMethods` | `"email" \| "web3" \| "ton" \| "all"` or CSV | no       | Which login methods to expose. CSV combos are allowed (`"email,web3"`). Default `"email"`.                                                                                                     |
 
@@ -69,7 +69,7 @@ For iframe-only integrations (e.g. CMS blocks that cannot run arbitrary scripts)
 use the `/embed` route directly:
 
 ```
-https://unigox.com/embed?partner=acme&type=buy&crypto=ETH&fiat=USD&amount=100&theme=minimal&email=user@example.com&loginMethods=email,web3
+https://unigox.com/embed?partner=acme&type=buy&crypto=ETH&fiat=USD&amount=100&theme=light&email=user@example.com&loginMethods=email,web3
 ```
 
 The supported query params mirror the init options above. Without `widget.js`
