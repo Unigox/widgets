@@ -31,6 +31,7 @@ interface Config {
   partner: string
   email: string
   loginMethods: LoginMethod[]
+  requireLogin: boolean
   width: string
   height: string
 }
@@ -46,6 +47,7 @@ const defaultConfig: Config = {
   partner: "",
   email: "",
   loginMethods: ["email"],
+  requireLogin: false,
   width: "480px",
   height: "740px",
 }
@@ -67,6 +69,7 @@ function buildUrl(config: Config): string {
       config.loginMethods.length === 3 ? "all" : config.loginMethods.join(",")
     )
   }
+  if (config.requireLogin) params.set("requireLogin", "true")
   const qs = params.toString()
   return qs ? `${config.baseUrl}?${qs}` : config.baseUrl
 }
@@ -234,6 +237,21 @@ export function EmbedPlayground() {
                   )
                 })}
               </div>
+            </Field>
+            <Field label="Require login">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={config.requireLogin}
+                onClick={() => update("requireLogin", !config.requireLogin)}
+                className={
+                  config.requireLogin
+                    ? "rounded-md border border-primary bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground"
+                    : "rounded-md border border-input bg-transparent px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+                }
+              >
+                {config.requireLogin ? "on" : "off"}
+              </button>
             </Field>
           </section>
 
