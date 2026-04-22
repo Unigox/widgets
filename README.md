@@ -1,36 +1,28 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Unigox Widgets
 
-## Getting Started
+Next.js app hosting the live **integration playground** for the Unigox embeddable
+widget. Partners use it to configure the widget visually, copy the resulting
+embed snippet, and preview the iframe before shipping it to their own site.
 
-First, run the development server:
+Live playground: `<PLAYGROUND_URL>`
+
+## Docs
+
+- [`docs/client-integration.md`](docs/client-integration.md) — **partner-facing**
+  integration guide: copy-paste quickstart, full list of init options, callbacks,
+  CSP / Permissions-Policy requirements, session-reuse behavior.
+- [`docs/embed-widget.md`](docs/embed-widget.md) — developer-oriented reference
+  for the `/embed` route on `unigox.com`, the postMessage protocol, and how to
+  run the playground against a local `unigox.com` dev server.
+
+## Development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev    # defaults to port 3003
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The playground is available at [`/widgets/embed`](http://localhost:3003/widgets/embed).
+By default it loads the widget from `http://localhost:3000/embed` — run
+`unigox.com` in another terminal to exercise real flows. Point
+`NEXT_PUBLIC_EMBED_BASE_URL` at staging or production to validate releases.
