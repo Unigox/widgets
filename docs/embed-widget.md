@@ -7,7 +7,11 @@ container and a loader script.
 
 One of several widgets in this repo. See also the playground route
 [`/widgets/embed`](../src/app/widgets/embed) for a live sandbox to exercise the
-configuration.
+configuration. Deployed playground: `<PLAYGROUND_URL>`.
+
+> This doc is the **developer reference** for maintainers of the embed widget.
+> For the partner-facing quickstart with a full options table, see
+> [`client-integration.md`](./client-integration.md).
 
 ## Quick start
 
@@ -33,18 +37,22 @@ the iframe manually.
 
 Passed to `UnigoxWidget.init(options)`.
 
-| Option         | Type                                         | Required | Description                                                                                                                                                                                    |
-| -------------- | -------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `container`    | `string \| HTMLElement`                      | yes      | CSS selector or element the iframe is appended to.                                                                                                                                             |
-| `partner`      | `string`                                     | no       | Partner identifier for attribution.                                                                                                                                                            |
-| `type`         | `"buy" \| "sell" \| "both"`                  | no       | Which mode the widget opens in. Default `"both"`.                                                                                                                                              |
-| `crypto`       | `string`                                     | no       | Pre-selected crypto (e.g. `"ETH"`, `"BTC"`, `"USDT"`).                                                                                                                                         |
-| `fiat`         | `string`                                     | no       | Pre-selected fiat (e.g. `"USD"`, `"EUR"`).                                                                                                                                                     |
-| `amount`       | `number`                                     | no       | Pre-filled amount.                                                                                                                                                                             |
-| `email`        | `string`                                     | no       | Prefill for auto-login.                                                                                                                                                                        |
-| `theme`        | `"light" \| "dark"`                          | no       | Visual theme. Defaults to `"light"`.                                                                                                                                                           |
-| `language`     | `string`                                     | no       | Language code. Default `"en"`.                                                                                                                                                                 |
-| `loginMethods` | `"email" \| "web3" \| "ton" \| "all"` or CSV | no       | Which login methods to expose. CSV combos are allowed (`"email,web3"`). Default `"email"`.                                                                                                     |
+| Option             | Type                                         | Required | Description                                                                                                                                                                                    |
+| ------------------ | -------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `container`        | `string \| HTMLElement`                      | yes      | CSS selector or element the iframe is appended to.                                                                                                                                             |
+| `partner`          | `string`                                     | no       | Partner identifier for attribution.                                                                                                                                                            |
+| `type`             | `"buy" \| "sell" \| "both"`                  | no       | Which mode the widget opens in. Default `"both"`.                                                                                                                                              |
+| `crypto`           | `string`                                     | no       | Pre-selected crypto (e.g. `"ETH"`, `"BTC"`, `"USDT"`).                                                                                                                                         |
+| `fiat`             | `string`                                     | no       | Pre-selected fiat (e.g. `"USD"`, `"EUR"`).                                                                                                                                                     |
+| `amount`           | `number`                                     | no       | Pre-filled amount. For `type=buy` it is the fiat side; for `type=sell` it is the crypto side.                                                                                                  |
+| `email`            | `string`                                     | no       | Prefill for auto-login.                                                                                                                                                                        |
+| `theme`            | `"light" \| "dark"`                          | no       | Visual theme. Defaults to `"light"`.                                                                                                                                                           |
+| `language`         | `string`                                     | no       | Language code. Default `"en"`.                                                                                                                                                                 |
+| `loginMethods`     | `"email" \| "web3" \| "ton" \| "all"` or CSV | no       | Which login methods to expose. CSV combos are allowed (`"email,web3"`). Default `"email"`.                                                                                                     |
+| `requireLogin`     | `boolean`                                    | no       | If `true`, force the login screen before the widget opens, even for anonymous flows. Default `false`.                                                                                          |
+| `applyAttribution` | `boolean`                                    | no       | Toggles the "Powered by Unigox" footer inside the widget. Default `true`.                                                                                                                      |
+| `width`            | `string`                                     | no       | Iframe width (CSS value). Default `"100%"`.                                                                                                                                                    |
+| `height`           | `string`                                     | no       | Iframe height (CSS value). Default `"700px"`. When set, `UNIGOX_RESIZE` auto-resize is disabled.                                                                                               |
 
 ### Callbacks
 
@@ -69,7 +77,7 @@ For iframe-only integrations (e.g. CMS blocks that cannot run arbitrary scripts)
 use the `/embed` route directly:
 
 ```
-https://unigox.com/embed?partner=acme&type=buy&crypto=ETH&fiat=USD&amount=100&theme=light&email=user@example.com&loginMethods=email,web3
+https://unigox.com/embed?partner=acme&type=buy&crypto=USDT&fiat=USD&amount=100&theme=light&email=user@example.com&loginMethods=email,web3
 ```
 
 The supported query params mirror the init options above. Without `widget.js`
