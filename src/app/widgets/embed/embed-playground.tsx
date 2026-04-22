@@ -188,6 +188,7 @@ export function EmbedPlayground() {
   const toggleTradeSide = (side: TradeSide) => {
     setConfig(prev => {
       const has = prev.tradeSides.includes(side)
+      if (has && prev.tradeSides.length === 1) return prev
       const next = has
         ? prev.tradeSides.filter(s => s !== side)
         : [...prev.tradeSides, side]
@@ -374,7 +375,7 @@ export function EmbedPlayground() {
                 <Input
                   value={config.height}
                   onChange={e => update("height", e.target.value)}
-                  placeholder="720px"
+                  placeholder="740px"
                 />
               </Field>
             </div>
