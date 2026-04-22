@@ -6,7 +6,7 @@ export default function EmbedWidgetPage() {
       <div className="mb-6">
         <h1 className="text-xl font-semibold">Embed widget</h1>
         <p className="text-sm text-muted-foreground">
-          Sandbox for testing the <code>/embed</code> route from unigox.com
+          Configure the widget and preview it live.
         </p>
       </div>
       <EmbedPlayground />
