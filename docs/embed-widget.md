@@ -41,7 +41,9 @@ Passed to `UnigoxWidget.init(options)`.
 | ------------------ | -------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `container`        | `string \| HTMLElement`                      | yes      | CSS selector or element the iframe is appended to.                                                                                                                                             |
 | `partner`          | `string`                                     | no       | Partner identifier for attribution.                                                                                                                                                            |
-| `type`             | `"buy" \| "sell" \| "both"`                  | no       | Which mode the widget opens in. Default `"both"`.                                                                                                                                              |
+| `type`             | `"buy" \| "sell" \| "both" \| "buy-with-sendout"` | no  | Which mode the widget opens in. Default `"both"`. `"buy-with-sendout"` adds an auto sendout step — see below.                                                                                  |
+| `sendoutAddress`   | `string`                                     | conditional | Destination address for the post-trade bridge. Required when `type=buy-with-sendout`.                                                                                                    |
+| `sendoutNetwork`   | `number`                                     | conditional | Destination chain id for the post-trade bridge. Required when `type=buy-with-sendout`.                                                                                                   |
 | `crypto`           | `string`                                     | no       | Pre-selected crypto (e.g. `"ETH"`, `"BTC"`, `"USDT"`).                                                                                                                                         |
 | `fiat`             | `string`                                     | no       | Pre-selected fiat (e.g. `"USD"`, `"EUR"`).                                                                                                                                                     |
 | `amount`           | `number`                                     | no       | Pre-filled amount. For `type=buy` it is the fiat side; for `type=sell` it is the crypto side.                                                                                                  |
@@ -56,12 +58,15 @@ Passed to `UnigoxWidget.init(options)`.
 
 ### Callbacks
 
-| Callback           | Payload                     | Fired when                               |
-| ------------------ | --------------------------- | ---------------------------------------- |
-| `onReady`          | —                           | Widget finished its initial render.      |
-| `onAuthChange`     | `{ isAuthenticated }`       | User signs in or signs out.              |
-| `onTradeStarted`   | `{ tradeId }`               | User confirmed a trade.                  |
-| `onTradeCompleted` | `{ tradeId }`               | Trade reached a terminal success state.  |
+| Callback             | Payload                                    | Fired when                                                                         |
+| -------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------- |
+| `onReady`            | —                                          | Widget finished its initial render.                                                |
+| `onAuthChange`       | `{ isAuthenticated }`                      | User signs in or signs out.                                                        |
+| `onTradeStarted`     | `{ tradeId }`                              | User confirmed a trade.                                                            |
+| `onTradeCompleted`   | `{ tradeId }`                              | Trade reached a terminal success state.                                            |
+| `onSendoutStarted`   | `{ tradeId, address, chainId }`            | *(buy-with-sendout)* Bridge submitted.                                             |
+| `onSendoutCompleted` | `{ tradeId, address, chainId, txHash? }`   | *(buy-with-sendout)* Bridge confirmed on destination chain.                        |
+| `onSendoutFailed`    | `{ tradeId, reason }`                      | *(buy-with-sendout)* Bridge errored; user can retry inside the widget.             |
 
 ### Handle methods
 
@@ -144,13 +149,16 @@ using `widget.js`), the widget speaks `window.postMessage` with
 
 **Widget → host**
 
-| `type`                  | Payload                  |
-| ----------------------- | ------------------------ |
-| `UNIGOX_READY`          | —                        |
-| `UNIGOX_RESIZE`         | `{ height: number }`     |
-| `UNIGOX_AUTH_STATE`     | `{ isAuthenticated }`    |
-| `UNIGOX_TRADE_STARTED`  | `{ tradeId }`            |
-| `UNIGOX_TRADE_COMPLETED`| `{ tradeId }`            |
+| `type`                   | Payload                                    |
+| ------------------------ | ------------------------------------------ |
+| `UNIGOX_READY`           | —                                          |
+| `UNIGOX_RESIZE`          | `{ height: number }`                       |
+| `UNIGOX_AUTH_STATE`      | `{ isAuthenticated }`                      |
+| `UNIGOX_TRADE_STARTED`   | `{ tradeId }`                              |
+| `UNIGOX_TRADE_COMPLETED` | `{ tradeId }`                              |
+| `UNIGOX_SENDOUT_STARTED` | `{ tradeId, address, chainId }`            |
+| `UNIGOX_SENDOUT_COMPLETED` | `{ tradeId, address, chainId, txHash? }` |
+| `UNIGOX_SENDOUT_FAILED`  | `{ tradeId, reason }`                      |
 
 **Host → widget**
 
@@ -158,6 +166,67 @@ using `widget.js`), the widget speaks `window.postMessage` with
 | --------------- | ------------------------------- |
 | `UNIGOX_CONFIG` | Same shape as `init` URL params |
 | `UNIGOX_RESET`  | —                               |
+
+## Buy with sendout (`type=buy-with-sendout`)
+
+Variant of the buy flow: after the trade terminally succeeds and the crypto
+lands in the user's internal Unigox wallet, the widget auto-navigates to a
+**sendout view** that bridges funds to a partner-controlled external address.
+The sendout view reuses the same relay-based bridge used by the main-site
+"Send to external wallet" flow (hooks in `components/wallet/send/hooks/`).
+
+### Surface
+
+- New `EmbedType` value: `"buy-with-sendout"`
+  (see `contexts/embed-config-context.tsx`).
+- New widget-config URL params: `sendoutAddress`, `sendoutNetwork` (chain id).
+- New `Views.SENDOUT` (see `contexts/widget-context.tsx`) rendered by
+  `components/widget/sendout/sendout-view.tsx`.
+- Persistent yellow banner
+  (`components/widget/sendout/sendout-banner.tsx`) shown on every pre-sendout
+  view. Hidden inside the sendout view itself.
+- Auto-transition `TRADE → SENDOUT` lives in
+  `components/widget/trade/states/trade-complete.tsx` and triggers once the
+  escrow is fully released (`canResolveEscrow === false`).
+- New outbound postMessages `UNIGOX_SENDOUT_STARTED / COMPLETED / FAILED`
+  (see `contexts/embed-postmessage-context.tsx`) with matching SDK callbacks
+  `onSendoutStarted / onSendoutCompleted / onSendoutFailed` in
+  `public/widget.js`.
+
+### UI rules in this mode
+
+- Buy/sell toggle is hidden in `StartView`; the `embedType === "buy-with-sendout"`
+  branch renders the "Buy Crypto" header only.
+- Everything else in `StartView` stays normal (fiat/crypto selectors, amount,
+  exchange-partner picker, best offer). The crypto selector is **not** filtered
+  — unsupported combinations surface as a "Sendout misconfigured" error on the
+  sendout step instead of at selection time.
+- The `SendoutView` drives `useWithdrawalBridgeState` imperatively: on mount it
+  resolves `(crypto_currency_code, sendoutNetwork)` against
+  `useBridgeCryptocurrencies()` to find the destination `TokenOnChain`, then
+  calls `setSelectedCryptocurrency`, `setRecipient`, `setAmount` with the
+  trade's `crypto_amount_to_buyer`.
+
+### Not yet implemented (MVP scope)
+
+These are intentional follow-ups. Track them before expanding the surface:
+
+- **No trade-level localStorage tagging.** Created trades are not tagged with
+  the widget's sendout config, so there is no record of intent beyond the
+  in-memory React state of the current tab.
+- **No `PENDING_PAYOUTS`-style resume view.** If the user closes the widget
+  between trade-complete and sendout submission, the next widget mount does
+  not detect the orphan. The recovery path today is the main-site wallet
+  page (`unigox.com/wallet → send → external`).
+- **No cross-device resume.** Same reason — state is only in the current
+  browser session's memory.
+- **No reconciliation with main-site activity.** Trades/sendouts performed on
+  `unigox.com` directly by the same user are not mapped against the widget's
+  sendout expectations. Accept this as a known gap.
+- **No backend coupling.** Server-side, a trade in this mode is identical to
+  a regular BUY — nothing links it to `sendoutAddress`/`sendoutNetwork`.
+  Partners that need server-enforced delivery guarantees are not covered
+  by this MVP.
 
 ## Session reuse & storage partitioning
 

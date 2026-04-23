@@ -15,12 +15,12 @@ import { Label } from "@/components/ui/label"
 import { NativeSelect } from "@/components/ui/native-select"
 import { Switch } from "@/components/ui/switch"
 
-type TradeSide = "buy" | "sell"
+type EmbedType = "buy" | "sell" | "buy-sell" | "buy-with-sendout"
 type EmbedTheme = "light" | "dark"
 type EmbedLanguage = "en"
 type LoginMethod = "email" | "web3" | "ton"
 
-const tradeSideOptions: TradeSide[] = ["buy", "sell"]
+const embedTypeOptions: EmbedType[] = ["buy", "sell", "buy-sell", "buy-with-sendout"]
 const languageOptions: EmbedLanguage[] = ["en"]
 const loginMethodOptions: LoginMethod[] = ["email", "web3", "ton"]
 
@@ -64,7 +64,7 @@ function useSupportedPairs() {
 
 interface Config {
   baseUrl: string
-  tradeSides: TradeSide[]
+  type: EmbedType
   theme: EmbedTheme
   language: EmbedLanguage
   partner: string
@@ -77,14 +77,24 @@ interface Config {
   applyAttribution: boolean
   width: string
   height: string
+  sendoutAddress: string
+  sendoutNetwork: string
 }
+
+const commonSendoutNetworks: { id: string; name: string }[] = [
+  { id: "1", name: "Ethereum" },
+  { id: "10", name: "Optimism" },
+  { id: "137", name: "Polygon" },
+  { id: "8453", name: "Base" },
+  { id: "42161", name: "Arbitrum" },
+]
 
 const defaultBaseUrl =
   process.env.NEXT_PUBLIC_EMBED_BASE_URL || "http://localhost:3000/embed"
 
 const defaultConfig: Config = {
   baseUrl: defaultBaseUrl,
-  tradeSides: ["buy", "sell"],
+  type: "buy-sell",
   theme: "light",
   language: "en",
   partner: "",
@@ -97,6 +107,15 @@ const defaultConfig: Config = {
   applyAttribution: true,
   width: "480px",
   height: "740px",
+  sendoutAddress: "",
+  sendoutNetwork: "1",
+}
+
+// Maps the playground's display type to the URL/SDK `type` value.
+// "buy-sell" is the default on the backend (`both`) — omit it from the URL.
+function typeParamValue(type: EmbedType): string | null {
+  if (type === "buy-sell") return null
+  return type
 }
 
 function serializeLoginMethods(methods: LoginMethod[]): string | null {
@@ -107,7 +126,12 @@ function serializeLoginMethods(methods: LoginMethod[]): string | null {
 
 function buildUrl(config: Config): string {
   const params = new URLSearchParams()
-  if (config.tradeSides.length === 1) params.set("type", config.tradeSides[0])
+  const typeValue = typeParamValue(config.type)
+  if (typeValue) params.set("type", typeValue)
+  if (config.type === "buy-with-sendout") {
+    if (config.sendoutAddress) params.set("sendoutAddress", config.sendoutAddress)
+    if (config.sendoutNetwork) params.set("sendoutNetwork", config.sendoutNetwork)
+  }
   if (config.theme) params.set("theme", config.theme)
   if (config.language && config.language !== "en")
     params.set("language", config.language)
@@ -135,8 +159,14 @@ function scriptOrigin(baseUrl: string): string {
 function buildInitSnippet(config: Config): string {
   const opts: string[] = [`container: "#unigox-widget"`]
   if (config.partner) opts.push(`partner: "${config.partner}"`)
-  if (config.tradeSides.length === 1)
-    opts.push(`type: "${config.tradeSides[0]}"`)
+  const typeValue = typeParamValue(config.type)
+  if (typeValue) opts.push(`type: "${typeValue}"`)
+  if (config.type === "buy-with-sendout") {
+    if (config.sendoutAddress)
+      opts.push(`sendoutAddress: "${config.sendoutAddress}"`)
+    if (config.sendoutNetwork)
+      opts.push(`sendoutNetwork: ${config.sendoutNetwork}`)
+  }
   if (config.crypto) opts.push(`crypto: "${config.crypto}"`)
   if (config.fiat) opts.push(`fiat: "${config.fiat}"`)
   if (config.amount) opts.push(`amount: ${JSON.stringify(config.amount)}`)
@@ -185,16 +215,6 @@ export function EmbedPlayground() {
     })
   }
 
-  const toggleTradeSide = (side: TradeSide) => {
-    setConfig(prev => {
-      const has = prev.tradeSides.includes(side)
-      if (has && prev.tradeSides.length === 1) return prev
-      const next = has
-        ? prev.tradeSides.filter(s => s !== side)
-        : [...prev.tradeSides, side]
-      return { ...prev, tradeSides: next }
-    })
-  }
 
   return (
     <div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
@@ -207,15 +227,15 @@ export function EmbedPlayground() {
         </CardHeader>
         <CardContent className="space-y-6">
           <ConfigSection title="Trade">
-            <InlineField label="Type">
+            <Field label="Type">
               <div className="flex flex-wrap gap-2">
-                {tradeSideOptions.map(side => {
-                  const active = config.tradeSides.includes(side)
+                {embedTypeOptions.map(option => {
+                  const active = config.type === option
                   return (
                     <button
-                      key={side}
+                      key={option}
                       type="button"
-                      onClick={() => toggleTradeSide(side)}
+                      onClick={() => update("type", option)}
                       aria-pressed={active}
                       className={
                         active
@@ -223,12 +243,40 @@ export function EmbedPlayground() {
                           : "rounded-md border border-input bg-transparent px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
                       }
                     >
-                      {side}
+                      {option}
                     </button>
                   )
                 })}
               </div>
-            </InlineField>
+            </Field>
+            {config.type === "buy-with-sendout" && (
+              <>
+                <Field label="Sendout address">
+                  <Input
+                    value={config.sendoutAddress}
+                    onChange={e => update("sendoutAddress", e.target.value)}
+                    placeholder="0x… (EVM) or Solana base58"
+                  />
+                </Field>
+                <Field label="Sendout network (chain id)">
+                  <NativeSelect
+                    value={config.sendoutNetwork}
+                    onChange={e => update("sendoutNetwork", e.target.value)}
+                  >
+                    {commonSendoutNetworks.map(n => (
+                      <option key={n.id} value={n.id}>
+                        {n.name} ({n.id})
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </Field>
+                <p className="text-xs text-muted-foreground">
+                  After the buy flow completes, the widget auto-navigates to
+                  a sendout step that bridges the purchased crypto to the
+                  address above.
+                </p>
+              </>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <Field label="Crypto">
                 <NativeSelect
