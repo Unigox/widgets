@@ -28,11 +28,35 @@ const OFFERS_API =
   process.env.NEXT_PUBLIC_OFFERS_API ||
   "https://offers-y5u4f.ondigitalocean.app/api/v1"
 
+const CURRENCIES_API =
+  process.env.NEXT_PUBLIC_CURRENCIES_API ||
+  "https://currencies-khccy.ondigitalocean.app/api/v1"
+
 interface SupportedPair {
   crypto_currency_code: string
   fiat_currency_code: string
   type: "BUY" | "SELL"
 }
+
+interface BridgeToken {
+  code: string
+  chain: { id: number; name: string }
+}
+
+interface SendoutNetwork {
+  id: string
+  name: string
+}
+
+// Fallback list in case the currencies API is unreachable — matches what the
+// main unigox.com frontend shows today.
+const fallbackSendoutNetworks: SendoutNetwork[] = [
+  { id: "1", name: "Ethereum" },
+  { id: "10", name: "Optimism" },
+  { id: "137", name: "Polygon" },
+  { id: "8453", name: "Base" },
+  { id: "42161", name: "Arbitrum" },
+]
 
 function useSupportedPairs() {
   const [cryptos, setCryptos] = React.useState<string[]>([])
@@ -62,6 +86,38 @@ function useSupportedPairs() {
   return { cryptos, fiats }
 }
 
+// Pulls the live bridge-supported chain list from the same endpoint the main
+// unigox.com widget uses (`useBridgeCryptocurrencies`) so the sendout network
+// dropdown stays in sync with what the widget will actually accept.
+function useSendoutNetworks(): SendoutNetwork[] {
+  const [networks, setNetworks] = React.useState<SendoutNetwork[]>(fallbackSendoutNetworks)
+
+  React.useEffect(() => {
+    let cancelled = false
+    fetch(`${CURRENCIES_API}/bridge-cryptocurrencies`)
+      .then(r => r.json())
+      .then((body: { success?: boolean; data: BridgeToken[] }) => {
+        if (cancelled || !Array.isArray(body?.data)) return
+        const uniq = new Map<number, SendoutNetwork>()
+        body.data.forEach(t => {
+          if (t.chain?.id && t.chain?.name && !uniq.has(t.chain.id)) {
+            uniq.set(t.chain.id, { id: String(t.chain.id), name: t.chain.name })
+          }
+        })
+        if (uniq.size === 0) return
+        setNetworks(
+          Array.from(uniq.values()).sort((a, b) => Number(a.id) - Number(b.id)),
+        )
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  return networks
+}
+
 interface Config {
   baseUrl: string
   type: EmbedType
@@ -80,14 +136,6 @@ interface Config {
   sendoutAddress: string
   sendoutNetwork: string
 }
-
-const commonSendoutNetworks: { id: string; name: string }[] = [
-  { id: "1", name: "Ethereum" },
-  { id: "10", name: "Optimism" },
-  { id: "137", name: "Polygon" },
-  { id: "8453", name: "Base" },
-  { id: "42161", name: "Arbitrum" },
-]
 
 const defaultBaseUrl =
   process.env.NEXT_PUBLIC_EMBED_BASE_URL || "http://localhost:3000/embed"
@@ -196,6 +244,7 @@ export function EmbedPlayground() {
   const [config, setConfig] = React.useState<Config>(defaultConfig)
   const [iframeKey, setIframeKey] = React.useState(0)
   const { cryptos, fiats } = useSupportedPairs()
+  const sendoutNetworks = useSendoutNetworks()
 
   const url = React.useMemo(() => buildUrl(config), [config])
   const snippet = React.useMemo(() => buildInitSnippet(config), [config])
@@ -262,7 +311,7 @@ export function EmbedPlayground() {
                     value={config.sendoutNetwork}
                     onChange={e => update("sendoutNetwork", e.target.value)}
                   >
-                    {commonSendoutNetworks.map(n => (
+                    {sendoutNetworks.map(n => (
                       <option key={n.id} value={n.id}>
                         {n.name} ({n.id})
                       </option>
