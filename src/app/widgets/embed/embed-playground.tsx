@@ -97,7 +97,7 @@ const defaultConfig: Config = {
   type: "buy-sell",
   theme: "light",
   language: "en",
-  partner: "",
+  partner: "acme",
   email: "",
   crypto: "",
   fiat: "",
