@@ -15,12 +15,12 @@ import { Label } from "@/components/ui/label"
 import { NativeSelect } from "@/components/ui/native-select"
 import { Switch } from "@/components/ui/switch"
 
-type TradeSide = "buy" | "sell"
+type EmbedType = "buy" | "sell" | "buy-sell" | "buy-with-sendout"
 type EmbedTheme = "light" | "dark"
 type EmbedLanguage = "en"
 type LoginMethod = "email" | "web3" | "ton"
 
-const tradeSideOptions: TradeSide[] = ["buy", "sell"]
+const embedTypeOptions: EmbedType[] = ["buy", "sell", "buy-sell", "buy-with-sendout"]
 const languageOptions: EmbedLanguage[] = ["en"]
 const loginMethodOptions: LoginMethod[] = ["email", "web3", "ton"]
 
@@ -28,11 +28,35 @@ const OFFERS_API =
   process.env.NEXT_PUBLIC_OFFERS_API ||
   "https://offers-y5u4f.ondigitalocean.app/api/v1"
 
+const CURRENCIES_API =
+  process.env.NEXT_PUBLIC_CURRENCIES_API ||
+  "https://currencies-khccy.ondigitalocean.app/api/v1"
+
 interface SupportedPair {
   crypto_currency_code: string
   fiat_currency_code: string
   type: "BUY" | "SELL"
 }
+
+interface BridgeToken {
+  code: string
+  chain: { id: number; name: string }
+}
+
+interface SendoutNetwork {
+  id: string
+  name: string
+}
+
+// Fallback list in case the currencies API is unreachable — matches what the
+// main unigox.com frontend shows today.
+const fallbackSendoutNetworks: SendoutNetwork[] = [
+  { id: "1", name: "Ethereum" },
+  { id: "10", name: "Optimism" },
+  { id: "137", name: "Polygon" },
+  { id: "8453", name: "Base" },
+  { id: "42161", name: "Arbitrum" },
+]
 
 function useSupportedPairs() {
   const [cryptos, setCryptos] = React.useState<string[]>([])
@@ -62,9 +86,41 @@ function useSupportedPairs() {
   return { cryptos, fiats }
 }
 
+// Pulls the live bridge-supported chain list from the same endpoint the main
+// unigox.com widget uses (`useBridgeCryptocurrencies`) so the sendout network
+// dropdown stays in sync with what the widget will actually accept.
+function useSendoutNetworks(): SendoutNetwork[] {
+  const [networks, setNetworks] = React.useState<SendoutNetwork[]>(fallbackSendoutNetworks)
+
+  React.useEffect(() => {
+    let cancelled = false
+    fetch(`${CURRENCIES_API}/bridge-cryptocurrencies`)
+      .then(r => r.json())
+      .then((body: { success?: boolean; data: BridgeToken[] }) => {
+        if (cancelled || !Array.isArray(body?.data)) return
+        const uniq = new Map<number, SendoutNetwork>()
+        body.data.forEach(t => {
+          if (t.chain?.id && t.chain?.name && !uniq.has(t.chain.id)) {
+            uniq.set(t.chain.id, { id: String(t.chain.id), name: t.chain.name })
+          }
+        })
+        if (uniq.size === 0) return
+        setNetworks(
+          Array.from(uniq.values()).sort((a, b) => Number(a.id) - Number(b.id)),
+        )
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  return networks
+}
+
 interface Config {
   baseUrl: string
-  tradeSides: TradeSide[]
+  type: EmbedType
   theme: EmbedTheme
   language: EmbedLanguage
   partner: string
@@ -77,6 +133,10 @@ interface Config {
   applyAttribution: boolean
   width: string
   height: string
+  autoWidth: boolean
+  autoHeight: boolean
+  sendoutAddress: string
+  sendoutNetwork: string
 }
 
 const defaultBaseUrl =
@@ -84,10 +144,10 @@ const defaultBaseUrl =
 
 const defaultConfig: Config = {
   baseUrl: defaultBaseUrl,
-  tradeSides: ["buy", "sell"],
+  type: "buy-sell",
   theme: "light",
   language: "en",
-  partner: "",
+  partner: "acme",
   email: "",
   crypto: "",
   fiat: "",
@@ -97,6 +157,16 @@ const defaultConfig: Config = {
   applyAttribution: true,
   width: "480px",
   height: "740px",
+  autoWidth: false,
+  autoHeight: true,
+  sendoutAddress: "0x000000000000000000000000000000000000dead",
+  sendoutNetwork: "1",
+}
+
+// `buy-sell` is the backend default — omit the URL param to keep snippets clean.
+function typeParamValue(type: EmbedType): string | null {
+  if (type === "buy-sell") return null
+  return type
 }
 
 function serializeLoginMethods(methods: LoginMethod[]): string | null {
@@ -107,7 +177,12 @@ function serializeLoginMethods(methods: LoginMethod[]): string | null {
 
 function buildUrl(config: Config): string {
   const params = new URLSearchParams()
-  if (config.tradeSides.length === 1) params.set("type", config.tradeSides[0])
+  const typeValue = typeParamValue(config.type)
+  if (typeValue) params.set("type", typeValue)
+  if (config.type === "buy-with-sendout") {
+    if (config.sendoutAddress) params.set("sendoutAddress", config.sendoutAddress)
+    if (config.sendoutNetwork) params.set("sendoutNetwork", config.sendoutNetwork)
+  }
   if (config.theme) params.set("theme", config.theme)
   if (config.language && config.language !== "en")
     params.set("language", config.language)
@@ -135,8 +210,14 @@ function scriptOrigin(baseUrl: string): string {
 function buildInitSnippet(config: Config): string {
   const opts: string[] = [`container: "#unigox-widget"`]
   if (config.partner) opts.push(`partner: "${config.partner}"`)
-  if (config.tradeSides.length === 1)
-    opts.push(`type: "${config.tradeSides[0]}"`)
+  const typeValue = typeParamValue(config.type)
+  if (typeValue) opts.push(`type: "${typeValue}"`)
+  if (config.type === "buy-with-sendout") {
+    if (config.sendoutAddress)
+      opts.push(`sendoutAddress: "${config.sendoutAddress}"`)
+    if (config.sendoutNetwork)
+      opts.push(`sendoutNetwork: ${config.sendoutNetwork}`)
+  }
   if (config.crypto) opts.push(`crypto: "${config.crypto}"`)
   if (config.fiat) opts.push(`fiat: "${config.fiat}"`)
   if (config.amount) opts.push(`amount: ${JSON.stringify(config.amount)}`)
@@ -148,8 +229,8 @@ function buildInitSnippet(config: Config): string {
   if (loginMethods) opts.push(`loginMethods: "${loginMethods}"`)
   if (config.requireLogin) opts.push(`requireLogin: true`)
   if (!config.applyAttribution) opts.push(`applyAttribution: false`)
-  if (config.width) opts.push(`width: "${config.width}"`)
-  if (config.height) opts.push(`height: "${config.height}"`)
+  if (!config.autoWidth && config.width) opts.push(`width: "${config.width}"`)
+  if (!config.autoHeight && config.height) opts.push(`height: "${config.height}"`)
 
   const body = opts.map(line => `    ${line},`).join("\n")
   const origin = scriptOrigin(config.baseUrl)
@@ -167,6 +248,26 @@ export function EmbedPlayground() {
   const [config, setConfig] = React.useState<Config>(defaultConfig)
   const [iframeKey, setIframeKey] = React.useState(0)
   const { cryptos, fiats } = useSupportedPairs()
+  const sendoutNetworks = useSendoutNetworks()
+
+  // Track the latest height the widget reports via UNIGOX_RESIZE so the preview
+  // iframe behaves the same way the SDK does when the host leaves height unset.
+  const [autoReportedHeight, setAutoReportedHeight] = React.useState<number | null>(null)
+  React.useEffect(() => {
+    function onMessage(event: MessageEvent) {
+      const data = event.data
+      if (!data || data.source !== "unigox-widget") return
+      if (data.type === "UNIGOX_RESIZE" && data.payload?.height) {
+        setAutoReportedHeight(data.payload.height)
+      }
+    }
+    window.addEventListener("message", onMessage)
+    return () => window.removeEventListener("message", onMessage)
+  }, [])
+  // Reset reported height on iframe reload so the preview re-grows from scratch.
+  React.useEffect(() => {
+    setAutoReportedHeight(null)
+  }, [iframeKey, config.autoHeight])
 
   const url = React.useMemo(() => buildUrl(config), [config])
   const snippet = React.useMemo(() => buildInitSnippet(config), [config])
@@ -185,16 +286,6 @@ export function EmbedPlayground() {
     })
   }
 
-  const toggleTradeSide = (side: TradeSide) => {
-    setConfig(prev => {
-      const has = prev.tradeSides.includes(side)
-      if (has && prev.tradeSides.length === 1) return prev
-      const next = has
-        ? prev.tradeSides.filter(s => s !== side)
-        : [...prev.tradeSides, side]
-      return { ...prev, tradeSides: next }
-    })
-  }
 
   return (
     <div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
@@ -207,15 +298,15 @@ export function EmbedPlayground() {
         </CardHeader>
         <CardContent className="space-y-6">
           <ConfigSection title="Trade">
-            <InlineField label="Type">
+            <Field label="Type">
               <div className="flex flex-wrap gap-2">
-                {tradeSideOptions.map(side => {
-                  const active = config.tradeSides.includes(side)
+                {embedTypeOptions.map(option => {
+                  const active = config.type === option
                   return (
                     <button
-                      key={side}
+                      key={option}
                       type="button"
-                      onClick={() => toggleTradeSide(side)}
+                      onClick={() => update("type", option)}
                       aria-pressed={active}
                       className={
                         active
@@ -223,12 +314,40 @@ export function EmbedPlayground() {
                           : "rounded-md border border-input bg-transparent px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
                       }
                     >
-                      {side}
+                      {option}
                     </button>
                   )
                 })}
               </div>
-            </InlineField>
+            </Field>
+            {config.type === "buy-with-sendout" && (
+              <>
+                <Field label="Sendout address">
+                  <Input
+                    value={config.sendoutAddress}
+                    onChange={e => update("sendoutAddress", e.target.value)}
+                    placeholder="0x… (EVM) or Solana base58"
+                  />
+                </Field>
+                <Field label="Sendout network (chain id)">
+                  <NativeSelect
+                    value={config.sendoutNetwork}
+                    onChange={e => update("sendoutNetwork", e.target.value)}
+                  >
+                    {sendoutNetworks.map(n => (
+                      <option key={n.id} value={n.id}>
+                        {n.name} ({n.id})
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </Field>
+                <p className="text-xs text-muted-foreground">
+                  After the buy flow completes, the widget auto-navigates to
+                  a sendout step that bridges the purchased crypto to the
+                  address above.
+                </p>
+              </>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <Field label="Crypto">
                 <NativeSelect
@@ -366,19 +485,31 @@ export function EmbedPlayground() {
             <div className="grid grid-cols-2 gap-3">
               <Field label="Width">
                 <Input
-                  value={config.width}
+                  value={config.autoWidth ? "100%" : config.width}
                   onChange={e => update("width", e.target.value)}
                   placeholder="480px"
+                  disabled={config.autoWidth}
                 />
               </Field>
               <Field label="Height">
                 <Input
-                  value={config.height}
+                  value={config.autoHeight ? "auto" : config.height}
                   onChange={e => update("height", e.target.value)}
                   placeholder="740px"
+                  disabled={config.autoHeight}
                 />
               </Field>
             </div>
+            <SwitchField
+              label="Auto width"
+              checked={config.autoWidth}
+              onCheckedChange={value => update("autoWidth", value)}
+            />
+            <SwitchField
+              label="Auto height"
+              checked={config.autoHeight}
+              onCheckedChange={value => update("autoHeight", value)}
+            />
           </ConfigSection>
 
           <ConfigSection title="Source">
@@ -427,8 +558,10 @@ export function EmbedPlayground() {
                 src={url}
                 title="Unigox embed widget"
                 style={{
-                  width: config.width,
-                  height: config.height,
+                  width: config.autoWidth ? "100%" : config.width,
+                  // When autoHeight is on, start with a sensible minimum and let the
+                  // UNIGOX_RESIZE listener grow the iframe to fit the widget's content.
+                  height: config.autoHeight ? (autoReportedHeight ?? 700) + "px" : config.height,
                   maxWidth: "100%",
                   backgroundColor: "transparent",
                 }}
