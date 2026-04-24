@@ -15,12 +15,12 @@ import { Label } from "@/components/ui/label"
 import { NativeSelect } from "@/components/ui/native-select"
 import { Switch } from "@/components/ui/switch"
 
-type EmbedType = "buy" | "sell" | "both" | "buy-with-sendout"
+type EmbedType = "buy" | "sell" | "buy-sell" | "buy-with-sendout"
 type EmbedTheme = "light" | "dark"
 type EmbedLanguage = "en"
 type LoginMethod = "email" | "web3" | "ton"
 
-const embedTypeOptions: EmbedType[] = ["buy", "sell", "both", "buy-with-sendout"]
+const embedTypeOptions: EmbedType[] = ["buy", "sell", "buy-sell", "buy-with-sendout"]
 const languageOptions: EmbedLanguage[] = ["en"]
 const loginMethodOptions: LoginMethod[] = ["email", "web3", "ton"]
 
@@ -94,7 +94,7 @@ const defaultBaseUrl =
 
 const defaultConfig: Config = {
   baseUrl: defaultBaseUrl,
-  type: "both",
+  type: "buy-sell",
   theme: "light",
   language: "en",
   partner: "",
@@ -111,9 +111,9 @@ const defaultConfig: Config = {
   sendoutNetwork: "1",
 }
 
-// `both` is the backend default for the URL param — omit it to keep snippets clean.
+// `buy-sell` is the backend default — omit the URL param to keep snippets clean.
 function typeParamValue(type: EmbedType): string | null {
-  if (type === "both") return null
+  if (type === "buy-sell") return null
   return type
 }
 
