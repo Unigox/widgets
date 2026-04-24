@@ -133,6 +133,8 @@ interface Config {
   applyAttribution: boolean
   width: string
   height: string
+  autoWidth: boolean
+  autoHeight: boolean
   sendoutAddress: string
   sendoutNetwork: string
 }
@@ -155,6 +157,8 @@ const defaultConfig: Config = {
   applyAttribution: true,
   width: "480px",
   height: "740px",
+  autoWidth: false,
+  autoHeight: true,
   sendoutAddress: "0x000000000000000000000000000000000000dead",
   sendoutNetwork: "1",
 }
@@ -225,8 +229,8 @@ function buildInitSnippet(config: Config): string {
   if (loginMethods) opts.push(`loginMethods: "${loginMethods}"`)
   if (config.requireLogin) opts.push(`requireLogin: true`)
   if (!config.applyAttribution) opts.push(`applyAttribution: false`)
-  if (config.width) opts.push(`width: "${config.width}"`)
-  if (config.height) opts.push(`height: "${config.height}"`)
+  if (!config.autoWidth && config.width) opts.push(`width: "${config.width}"`)
+  if (!config.autoHeight && config.height) opts.push(`height: "${config.height}"`)
 
   const body = opts.map(line => `    ${line},`).join("\n")
   const origin = scriptOrigin(config.baseUrl)
@@ -245,6 +249,25 @@ export function EmbedPlayground() {
   const [iframeKey, setIframeKey] = React.useState(0)
   const { cryptos, fiats } = useSupportedPairs()
   const sendoutNetworks = useSendoutNetworks()
+
+  // Track the latest height the widget reports via UNIGOX_RESIZE so the preview
+  // iframe behaves the same way the SDK does when the host leaves height unset.
+  const [autoReportedHeight, setAutoReportedHeight] = React.useState<number | null>(null)
+  React.useEffect(() => {
+    function onMessage(event: MessageEvent) {
+      const data = event.data
+      if (!data || data.source !== "unigox-widget") return
+      if (data.type === "UNIGOX_RESIZE" && data.payload?.height) {
+        setAutoReportedHeight(data.payload.height)
+      }
+    }
+    window.addEventListener("message", onMessage)
+    return () => window.removeEventListener("message", onMessage)
+  }, [])
+  // Reset reported height on iframe reload so the preview re-grows from scratch.
+  React.useEffect(() => {
+    setAutoReportedHeight(null)
+  }, [iframeKey, config.autoHeight])
 
   const url = React.useMemo(() => buildUrl(config), [config])
   const snippet = React.useMemo(() => buildInitSnippet(config), [config])
@@ -462,19 +485,31 @@ export function EmbedPlayground() {
             <div className="grid grid-cols-2 gap-3">
               <Field label="Width">
                 <Input
-                  value={config.width}
+                  value={config.autoWidth ? "100%" : config.width}
                   onChange={e => update("width", e.target.value)}
                   placeholder="480px"
+                  disabled={config.autoWidth}
                 />
               </Field>
               <Field label="Height">
                 <Input
-                  value={config.height}
+                  value={config.autoHeight ? "auto" : config.height}
                   onChange={e => update("height", e.target.value)}
                   placeholder="740px"
+                  disabled={config.autoHeight}
                 />
               </Field>
             </div>
+            <SwitchField
+              label="Auto width"
+              checked={config.autoWidth}
+              onCheckedChange={value => update("autoWidth", value)}
+            />
+            <SwitchField
+              label="Auto height"
+              checked={config.autoHeight}
+              onCheckedChange={value => update("autoHeight", value)}
+            />
           </ConfigSection>
 
           <ConfigSection title="Source">
@@ -523,8 +558,10 @@ export function EmbedPlayground() {
                 src={url}
                 title="Unigox embed widget"
                 style={{
-                  width: config.width,
-                  height: config.height,
+                  width: config.autoWidth ? "100%" : config.width,
+                  // When autoHeight is on, start with a sensible minimum and let the
+                  // UNIGOX_RESIZE listener grow the iframe to fit the widget's content.
+                  height: config.autoHeight ? (autoReportedHeight ?? 700) + "px" : config.height,
                   maxWidth: "100%",
                   backgroundColor: "transparent",
                 }}
