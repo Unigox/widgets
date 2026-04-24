@@ -15,12 +15,12 @@ import { Label } from "@/components/ui/label"
 import { NativeSelect } from "@/components/ui/native-select"
 import { Switch } from "@/components/ui/switch"
 
-type EmbedType = "buy" | "sell" | "buy-sell" | "buy-with-sendout"
+type EmbedType = "buy" | "sell" | "both" | "buy-with-sendout"
 type EmbedTheme = "light" | "dark"
 type EmbedLanguage = "en"
 type LoginMethod = "email" | "web3" | "ton"
 
-const embedTypeOptions: EmbedType[] = ["buy", "sell", "buy-sell", "buy-with-sendout"]
+const embedTypeOptions: EmbedType[] = ["buy", "sell", "both", "buy-with-sendout"]
 const languageOptions: EmbedLanguage[] = ["en"]
 const loginMethodOptions: LoginMethod[] = ["email", "web3", "ton"]
 
@@ -94,7 +94,7 @@ const defaultBaseUrl =
 
 const defaultConfig: Config = {
   baseUrl: defaultBaseUrl,
-  type: "buy-sell",
+  type: "both",
   theme: "light",
   language: "en",
   partner: "",
@@ -107,14 +107,13 @@ const defaultConfig: Config = {
   applyAttribution: true,
   width: "480px",
   height: "740px",
-  sendoutAddress: "",
+  sendoutAddress: "0x000000000000000000000000000000000000dead",
   sendoutNetwork: "1",
 }
 
-// Maps the playground's display type to the URL/SDK `type` value.
-// "buy-sell" is the default on the backend (`both`) — omit it from the URL.
+// `both` is the backend default for the URL param — omit it to keep snippets clean.
 function typeParamValue(type: EmbedType): string | null {
-  if (type === "buy-sell") return null
+  if (type === "both") return null
   return type
 }
 

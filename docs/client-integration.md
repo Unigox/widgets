@@ -247,8 +247,10 @@ partner-configured external address over our existing bridge relay.
 
 ### Requirements & constraints
 
-- `sendoutAddress` must be a valid EVM `0x…` address or Solana base58 address
-  matching `sendoutNetwork`.
+- `sendoutAddress` must be a valid EVM `0x…` address (EVM-only for the MVP
+  bridge) and must pass EIP-55 checksum validation when mixed-case. Malformed
+  or wrong-checksum addresses render a "Widget misconfigured" screen before
+  any trade is created, so the user cannot proceed.
 - `sendoutNetwork` must be a chain id supported by the Unigox bridge for the
   chosen `crypto`. Unsupported combinations render a "Sendout misconfigured"
   screen inside the widget.
@@ -263,20 +265,30 @@ partner-configured external address over our existing bridge relay.
 The following are intentionally out of scope for the first iteration and are
 tracked as follow-ups. Plan for them on your side until they land:
 
-- **No resume across browser refresh or device switch.** If the user closes
-  the tab after the trade but before confirming the sendout, the purchased
-  crypto stays in their internal Unigox wallet. They can finish the transfer
-  from the main site (`unigox.com/wallet`). An in-widget "Pending payouts"
-  resume card is planned but not yet implemented.
-- **No localStorage tagging of trades.** Trades created in buy-with-sendout
-  mode are not locally tagged, so cross-reference with past bridge history
-  is not yet possible inside the widget.
+- **Idempotency is per-tab, in-memory only.** The widget tracks which trades
+  were created in the current session and which sendouts already fired, so
+  it never auto-runs the bridge twice for the same trade within a tab. This
+  survives logout→login in the same tab but **not** a full tab reload — see
+  next point.
+- **No resume across browser refresh or device switch.** If the user reloads
+  or closes the tab after the trade but before the sendout confirms, the
+  purchased crypto stays in the internal Unigox wallet. They can finish the
+  transfer from the main site (`unigox.com/wallet`). An in-widget "Pending
+  payouts" resume card is planned but not yet implemented.
+- **Partial server-side reconciliation only.** The widget matches completed
+  trades against the user's outgoing-bridge history (same amount, token,
+  network, recipient) as a secondary "already sent" signal — but this is
+  best-effort, not authoritative.
 - **Mixed usage with the main site is not reconciled.** If the same account
   does trades or external withdrawals on `unigox.com` directly, those will
   not be mapped against the widget's sendout expectations.
 - **No backend enforcement.** `sendoutAddress` / `sendoutNetwork` are client
   parameters only — nothing on the server links a trade to a specific
   sendout. Partners who need server-side guarantees should contact support.
+- **Origin validation is not yet enforced.** The widget currently accepts
+  embedding from any domain. Domain-locked embedding (per-partner allowed
+  origins via CSP) is a planned follow-up; contact us before going live with
+  end users to ensure your domains are registered.
 
 ---
 

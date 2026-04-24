@@ -207,19 +207,39 @@ The sendout view reuses the same relay-based bridge used by the main-site
   calls `setSelectedCryptocurrency`, `setRecipient`, `setAmount` with the
   trade's `crypto_amount_to_buyer`.
 
+### Idempotency & resume (MVP scope)
+
+Within a single tab the widget holds two in-memory `Set<tradeId>`s on
+`WidgetContext`:
+
+- `sessionTradeIds` — trades created in this widget session (auto-sendout
+  only fires for these; trades opened from history stay on the success
+  screen).
+- `sendoutCompletedTradeIds` — trades whose bridge already hit
+  `DESTINATION_CONFIRMED` this tab.
+
+Both persist across `useAuthCleanup` (logout→login in the same tab) so a
+cache-replayed `matchingState` cannot re-trigger the sendout. They die on
+tab reload — which is the documented scope of per-tab idempotency.
+
+As a secondary "already done" signal, `useSendoutMatches` greedy-matches
+completed BUY trades against the user's outgoing-bridge history so the
+transition is also suppressed when the primary in-memory flag is missing
+(e.g. trade reopened from history on the same tab after full refresh).
+
 ### Not yet implemented (MVP scope)
 
 These are intentional follow-ups. Track them before expanding the surface:
 
-- **No trade-level localStorage tagging.** Created trades are not tagged with
-  the widget's sendout config, so there is no record of intent beyond the
-  in-memory React state of the current tab.
+- **No trade-level storage tagging.** Created trades are not tagged with
+  the widget's sendout config on-disk; identity is in-memory only, so a
+  full page reload loses the session state.
 - **No `PENDING_PAYOUTS`-style resume view.** If the user closes the widget
   between trade-complete and sendout submission, the next widget mount does
-  not detect the orphan. The recovery path today is the main-site wallet
-  page (`unigox.com/wallet → send → external`).
+  not proactively surface the orphan. The recovery path today is the
+  main-site wallet page (`unigox.com/wallet → send → external`).
 - **No cross-device resume.** Same reason — state is only in the current
-  browser session's memory.
+  browser tab's memory.
 - **No reconciliation with main-site activity.** Trades/sendouts performed on
   `unigox.com` directly by the same user are not mapped against the widget's
   sendout expectations. Accept this as a known gap.
@@ -227,6 +247,10 @@ These are intentional follow-ups. Track them before expanding the surface:
   a regular BUY — nothing links it to `sendoutAddress`/`sendoutNetwork`.
   Partners that need server-enforced delivery guarantees are not covered
   by this MVP.
+- **No origin lock.** The widget accepts embedding from any domain; a
+  `Content-Security-Policy: frame-ancestors` per-partner scheme is a planned
+  follow-up (see `docs/widget/embed/sendout-partner-origin-lock.md` in
+  `unigox.com`).
 
 ## Session reuse & storage partitioning
 
