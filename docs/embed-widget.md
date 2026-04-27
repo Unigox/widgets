@@ -40,17 +40,18 @@ Passed to `UnigoxWidget.init(options)`.
 | Option             | Type                                         | Required | Description                                                                                                                                                                                    |
 | ------------------ | -------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `container`        | `string \| HTMLElement`                      | yes      | CSS selector or element the iframe is appended to.                                                                                                                                             |
-| `partner`          | `string`                                     | no       | Partner identifier for attribution.                                                                                                                                                            |
+| `partner`          | `string`                                     | no       | Free-form attribution identifier (any string). Surfaced in analytics events and the sendout banner. Not validated server-side.                                                                 |
+| `ref`              | `string`                                     | no       | Unigox username to credit signups to. Mirrors the main-site `?ref=` capture (see `store/ref.store.ts`) — passes through `EmbedWidget` → `parentRefCodeAtom` → `referral_code` on `account/login`. |
 | `type`             | `"buy" \| "sell" \| "buy-sell" \| "buy-with-sendout"` | no | Which mode the widget opens in. Default `"buy-sell"`. `"buy-with-sendout"` adds an auto sendout step — see below. `"both"` is still accepted as an alias for `"buy-sell"` for back-compat. |
 | `sendoutAddress`   | `string`                                     | conditional | Destination address for the post-trade bridge. Required when `type=buy-with-sendout`.                                                                                                    |
-| `sendoutNetwork`   | `number`                                     | conditional | Destination chain id for the post-trade bridge. Required when `type=buy-with-sendout`.                                                                                                   |
+| `sendoutNetwork`   | `string`                                     | conditional | Destination network for the post-trade bridge. Required when `type=buy-with-sendout`. Pass a blockchain ticker or name (e.g. `"ethereum"` / `"eth"`, `"polygon"` / `"pol"`, `"optimism"` / `"op"`, `"arbitrum"` / `"arb"`, `"base"`). Numeric chain ids are not accepted. |
 | `crypto`           | `string`                                     | no       | Pre-selected crypto (e.g. `"ETH"`, `"BTC"`, `"USDT"`).                                                                                                                                         |
 | `fiat`             | `string`                                     | no       | Pre-selected fiat (e.g. `"USD"`, `"EUR"`).                                                                                                                                                     |
 | `amount`           | `number`                                     | no       | Pre-filled amount. For `type=buy` it is the fiat side; for `type=sell` it is the crypto side.                                                                                                  |
 | `email`            | `string`                                     | no       | Prefill for auto-login.                                                                                                                                                                        |
 | `theme`            | `"light" \| "dark"`                          | no       | Visual theme. Defaults to `"light"`.                                                                                                                                                           |
 | `language`         | `string`                                     | no       | Language code. Default `"en"`.                                                                                                                                                                 |
-| `loginMethods`     | `"email" \| "web3" \| "ton" \| "all"` or CSV | no       | Which login methods to expose. CSV combos are allowed (`"email,web3"`). Default `"email"`.                                                                                                     |
+| `loginMethods`     | `"email" \| "web3" \| "ton" \| "all"` or multiple options | no | Which login methods to expose. Pass a single value, `"all"` for all three, or multiple options separated by commas (`"email,web3"`). Default `"all"`. |
 | `requireLogin`     | `boolean`                                    | no       | If `true`, force the login screen before the widget opens, even for anonymous flows. Default `false`.                                                                                          |
 | `applyAttribution` | `boolean`                                    | no       | Toggles the "Powered by Unigox" footer inside the widget. Default `true`.                                                                                                                      |
 | `width`            | `string`                                     | no       | Iframe width (CSS value). Default `"100%"`.                                                                                                                                                    |
@@ -179,7 +180,9 @@ The sendout view reuses the same relay-based bridge used by the main-site
 
 - New `EmbedType` value: `"buy-with-sendout"`
   (see `contexts/embed-config-context.tsx`).
-- New widget-config URL params: `sendoutAddress`, `sendoutNetwork` (chain id).
+- New widget-config URL params: `sendoutAddress`, `sendoutNetwork` (blockchain
+  ticker — `ethereum`, `eth`, `optimism`, `op`, `polygon`, `pol`, `base`,
+  `arbitrum`, `arb`). Numeric chain ids are not accepted.
 - New `Views.SENDOUT` (see `contexts/widget-context.tsx`) rendered by
   `components/widget/sendout/sendout-view.tsx`.
 - Persistent yellow banner
@@ -202,7 +205,8 @@ The sendout view reuses the same relay-based bridge used by the main-site
   — unsupported combinations surface as a "Sendout misconfigured" error on the
   sendout step instead of at selection time.
 - The `SendoutView` drives `useWithdrawalBridgeState` imperatively: on mount it
-  resolves `(crypto_currency_code, sendoutNetwork)` against
+  resolves `(crypto_currency_code, sendoutNetwork)` (after mapping the ticker
+  to a chain id via `utils/sendout-network.ts`) against
   `useBridgeCryptocurrencies()` to find the destination `TokenOnChain`, then
   calls `setSelectedCryptocurrency`, `setRecipient`, `setAmount` with the
   trade's `crypto_amount_to_buyer`.
