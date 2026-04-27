@@ -28,34 +28,26 @@ const OFFERS_API =
   process.env.NEXT_PUBLIC_OFFERS_API ||
   "https://offers-y5u4f.ondigitalocean.app/api/v1"
 
-const CURRENCIES_API =
-  process.env.NEXT_PUBLIC_CURRENCIES_API ||
-  "https://currencies-khccy.ondigitalocean.app/api/v1"
-
 interface SupportedPair {
   crypto_currency_code: string
   fiat_currency_code: string
   type: "BUY" | "SELL"
 }
 
-interface BridgeToken {
-  code: string
-  chain: { id: number; name: string }
-}
-
 interface SendoutNetwork {
-  id: string
+  /** Canonical ticker passed to the widget (URL param value). */
+  ticker: string
   name: string
 }
 
-// Fallback list in case the currencies API is unreachable — matches what the
-// main unigox.com frontend shows today.
-const fallbackSendoutNetworks: SendoutNetwork[] = [
-  { id: "1", name: "Ethereum" },
-  { id: "10", name: "Optimism" },
-  { id: "137", name: "Polygon" },
-  { id: "8453", name: "Base" },
-  { id: "42161", name: "Arbitrum" },
+// Tickers accepted by the widget's `sendoutNetwork` URL param. Mirrors
+// `utils/sendout-network.ts` in the unigox.com repo — keep in sync.
+const sendoutNetworkOptions: SendoutNetwork[] = [
+  { ticker: "ethereum", name: "Ethereum" },
+  { ticker: "optimism", name: "Optimism" },
+  { ticker: "polygon", name: "Polygon" },
+  { ticker: "base", name: "Base" },
+  { ticker: "arbitrum", name: "Arbitrum" },
 ]
 
 function useSupportedPairs() {
@@ -86,44 +78,13 @@ function useSupportedPairs() {
   return { cryptos, fiats }
 }
 
-// Pulls the live bridge-supported chain list from the same endpoint the main
-// unigox.com widget uses (`useBridgeCryptocurrencies`) so the sendout network
-// dropdown stays in sync with what the widget will actually accept.
-function useSendoutNetworks(): SendoutNetwork[] {
-  const [networks, setNetworks] = React.useState<SendoutNetwork[]>(fallbackSendoutNetworks)
-
-  React.useEffect(() => {
-    let cancelled = false
-    fetch(`${CURRENCIES_API}/bridge-cryptocurrencies`)
-      .then(r => r.json())
-      .then((body: { success?: boolean; data: BridgeToken[] }) => {
-        if (cancelled || !Array.isArray(body?.data)) return
-        const uniq = new Map<number, SendoutNetwork>()
-        body.data.forEach(t => {
-          if (t.chain?.id && t.chain?.name && !uniq.has(t.chain.id)) {
-            uniq.set(t.chain.id, { id: String(t.chain.id), name: t.chain.name })
-          }
-        })
-        if (uniq.size === 0) return
-        setNetworks(
-          Array.from(uniq.values()).sort((a, b) => Number(a.id) - Number(b.id)),
-        )
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  return networks
-}
-
 interface Config {
   baseUrl: string
   type: EmbedType
   theme: EmbedTheme
   language: EmbedLanguage
   partner: string
+  ref: string
   email: string
   crypto: string
   fiat: string
@@ -147,12 +108,13 @@ const defaultConfig: Config = {
   type: "buy-sell",
   theme: "light",
   language: "en",
-  partner: "acme",
+  partner: "",
+  ref: "",
   email: "",
   crypto: "",
   fiat: "",
   amount: "",
-  loginMethods: ["email"],
+  loginMethods: ["email", "web3", "ton"],
   requireLogin: false,
   applyAttribution: true,
   width: "480px",
@@ -160,7 +122,7 @@ const defaultConfig: Config = {
   autoWidth: false,
   autoHeight: true,
   sendoutAddress: "0x000000000000000000000000000000000000dead",
-  sendoutNetwork: "1",
+  sendoutNetwork: "ethereum",
 }
 
 // `buy-sell` is the backend default — omit the URL param to keep snippets clean.
@@ -171,8 +133,9 @@ function typeParamValue(type: EmbedType): string | null {
 
 function serializeLoginMethods(methods: LoginMethod[]): string | null {
   if (methods.length === 0) return null
-  if (methods.length === 1 && methods[0] === "email") return null
-  return methods.length === 3 ? "all" : methods.join(",")
+  // All three is the backend default — omit the URL param to keep snippets clean.
+  if (methods.length === 3) return null
+  return methods.join(",")
 }
 
 function buildUrl(config: Config): string {
@@ -187,6 +150,7 @@ function buildUrl(config: Config): string {
   if (config.language && config.language !== "en")
     params.set("language", config.language)
   if (config.partner) params.set("partner", config.partner)
+  if (config.ref) params.set("ref", config.ref)
   if (config.email) params.set("email", config.email)
   if (config.crypto) params.set("crypto", config.crypto)
   if (config.fiat) params.set("fiat", config.fiat)
@@ -210,13 +174,14 @@ function scriptOrigin(baseUrl: string): string {
 function buildInitSnippet(config: Config): string {
   const opts: string[] = [`container: "#unigox-widget"`]
   if (config.partner) opts.push(`partner: "${config.partner}"`)
+  if (config.ref) opts.push(`ref: "${config.ref}"`)
   const typeValue = typeParamValue(config.type)
   if (typeValue) opts.push(`type: "${typeValue}"`)
   if (config.type === "buy-with-sendout") {
     if (config.sendoutAddress)
       opts.push(`sendoutAddress: "${config.sendoutAddress}"`)
     if (config.sendoutNetwork)
-      opts.push(`sendoutNetwork: ${config.sendoutNetwork}`)
+      opts.push(`sendoutNetwork: "${config.sendoutNetwork}"`)
   }
   if (config.crypto) opts.push(`crypto: "${config.crypto}"`)
   if (config.fiat) opts.push(`fiat: "${config.fiat}"`)
@@ -244,11 +209,13 @@ ${body}
 </script>`
 }
 
+type PreviewMode = "bare" | "website"
+
 export function EmbedPlayground() {
   const [config, setConfig] = React.useState<Config>(defaultConfig)
   const [iframeKey, setIframeKey] = React.useState(0)
+  const [previewMode, setPreviewMode] = React.useState<PreviewMode>("bare")
   const { cryptos, fiats } = useSupportedPairs()
-  const sendoutNetworks = useSendoutNetworks()
 
   // Track the latest height the widget reports via UNIGOX_RESIZE so the preview
   // iframe behaves the same way the SDK does when the host leaves height unset.
@@ -329,14 +296,14 @@ export function EmbedPlayground() {
                     placeholder="0x… (EVM) or Solana base58"
                   />
                 </Field>
-                <Field label="Sendout network (chain id)">
+                <Field label="Sendout network">
                   <NativeSelect
                     value={config.sendoutNetwork}
                     onChange={e => update("sendoutNetwork", e.target.value)}
                   >
-                    {sendoutNetworks.map(n => (
-                      <option key={n.id} value={n.id}>
-                        {n.name} ({n.id})
+                    {sendoutNetworkOptions.map(n => (
+                      <option key={n.ticker} value={n.ticker}>
+                        {n.name} ({n.ticker})
                       </option>
                     ))}
                   </NativeSelect>
@@ -466,16 +433,27 @@ export function EmbedPlayground() {
             />
           </ConfigSection>
 
-          <ConfigSection title="Partner">
-            <Field label="Partner ID">
+          <ConfigSection title="Attribution & referral">
+            <Field label="Partner identifier (free-form, optional)">
               <Input
                 value={config.partner}
                 onChange={e => update("partner", e.target.value)}
-                placeholder="acme"
+                placeholder="e.g. acme"
               />
             </Field>
+            <Field label="Referral — your Unigox username (optional)">
+              <Input
+                value={config.ref}
+                onChange={e => update("ref", e.target.value)}
+                placeholder="e.g. alice"
+              />
+            </Field>
+            <p className="text-xs text-muted-foreground">
+              Drop in your Unigox username to credit signups inside the widget
+              to your account — works without any backend integration.
+            </p>
             <SwitchField
-              label="Attribution"
+              label="Show &quot;Powered by Unigox&quot; footer"
               checked={config.applyAttribution}
               onCheckedChange={value => update("applyAttribution", value)}
             />
@@ -545,31 +523,61 @@ export function EmbedPlayground() {
 
       <div className="space-y-6">
         <Card>
-          <CardHeader>
-            <CardTitle>Preview</CardTitle>
-            <CardDescription>
-              Live iframe rendering the widget with the current configuration
-            </CardDescription>
+          <CardHeader className="gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <CardTitle>Preview</CardTitle>
+                <CardDescription>
+                  Live iframe rendering the widget with the current configuration
+                </CardDescription>
+              </div>
+              <div
+                role="tablist"
+                aria-label="Preview mode"
+                className="flex gap-1 rounded-md border border-input bg-transparent p-0.5"
+              >
+                {(["bare", "website"] as PreviewMode[]).map(mode => {
+                  const active = previewMode === mode
+                  return (
+                    <button
+                      key={mode}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => setPreviewMode(mode)}
+                      className={
+                        active
+                          ? "rounded-[5px] bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground"
+                          : "rounded-[5px] px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+                      }
+                    >
+                      {mode === "bare" ? "Bare" : "In a website"}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="flex justify-center rounded-lg bg-white p-6">
-              <iframe
-                key={iframeKey}
-                src={url}
-                title="Unigox embed widget"
-                style={{
-                  width: config.autoWidth ? "100%" : config.width,
-                  // When autoHeight is on, start with a sensible minimum and let the
-                  // UNIGOX_RESIZE listener grow the iframe to fit the widget's content.
-                  height: config.autoHeight ? (autoReportedHeight ?? 700) + "px" : config.height,
-                  maxWidth: "100%",
-                  backgroundColor: "transparent",
-                }}
-                className="rounded-lg"
-                allow="storage-access; publickey-credentials-get *; publickey-credentials-create *; clipboard-read; clipboard-write; payment"
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-storage-access-by-user-activation allow-modals"
-              />
-            </div>
+            {previewMode === "bare" ? (
+              <div className="flex justify-center rounded-lg bg-white p-6">
+                <WidgetIframe
+                  iframeKey={iframeKey}
+                  url={url}
+                  width={config.autoWidth ? "100%" : config.width}
+                  height={config.autoHeight ? (autoReportedHeight ?? 700) + "px" : config.height}
+                />
+              </div>
+            ) : (
+              <WebsiteMockup>
+                <WidgetIframe
+                  iframeKey={iframeKey}
+                  url={url}
+                  width="100%"
+                  height={config.autoHeight ? (autoReportedHeight ?? 700) + "px" : config.height}
+                />
+              </WebsiteMockup>
+            )}
           </CardContent>
         </Card>
 
@@ -688,5 +696,155 @@ function CopyButton({
     <Button size={size} variant={variant} onClick={handleCopy}>
       {copied ? "Copied" : "Copy"}
     </Button>
+  )
+}
+
+function WidgetIframe({
+  iframeKey,
+  url,
+  width,
+  height,
+}: {
+  iframeKey: number
+  url: string
+  width: string
+  height: string
+}) {
+  return (
+    <iframe
+      key={iframeKey}
+      src={url}
+      title="Unigox embed widget"
+      style={{
+        width,
+        // When autoHeight is on, the parent passes a height grown by the
+        // UNIGOX_RESIZE listener so the iframe fits its content.
+        height,
+        maxWidth: "100%",
+        backgroundColor: "transparent",
+      }}
+      className="rounded-lg"
+      allow="storage-access; publickey-credentials-get *; publickey-credentials-create *; clipboard-read; clipboard-write; payment"
+      sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-storage-access-by-user-activation allow-modals"
+    />
+  )
+}
+
+// Wireframe of a generic marketing site that sandwiches the widget into a
+// realistic-looking page. Pure presentational greys + dashed borders — no real
+// content, no images, no copy. Lets the playground show how the widget looks
+// when dropped onto a partner page.
+function WebsiteMockup({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-border bg-white shadow-sm">
+      {/* Browser chrome */}
+      <div className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-2">
+        <div className="flex gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full bg-zinc-300" />
+          <span className="h-2.5 w-2.5 rounded-full bg-zinc-300" />
+          <span className="h-2.5 w-2.5 rounded-full bg-zinc-300" />
+        </div>
+        <div className="ml-2 flex gap-1 text-zinc-300">
+          <span aria-hidden>‹</span>
+          <span aria-hidden>›</span>
+          <span aria-hidden>↻</span>
+        </div>
+        <div className="ml-2 flex-1 truncate rounded-md bg-white px-2 py-1 text-[10px] text-zinc-400 ring-1 ring-zinc-200">
+          https://www.example.com
+        </div>
+        <span className="text-zinc-300" aria-hidden>⋮</span>
+      </div>
+
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-border bg-white px-5 py-3">
+        <div className="flex items-center gap-2">
+          <div className="h-6 w-6 rounded-sm border border-zinc-300" />
+          <span className="text-sm font-semibold text-zinc-700">ExampleCo</span>
+        </div>
+        <div className="hidden items-center gap-5 text-xs text-zinc-500 sm:flex">
+          <span>Home</span>
+          <span>Products</span>
+          <span>Pricing</span>
+          <span>Resources ▾</span>
+        </div>
+        <div className="rounded-md border border-zinc-300 px-2.5 py-1 text-xs text-zinc-600">
+          Sign In
+        </div>
+      </div>
+
+      {/* Body: hero + sidebar widget */}
+      <div className="grid gap-5 px-5 py-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="space-y-5">
+          <div className="flex gap-4 rounded-lg bg-muted/40 p-4">
+            <div className="h-32 w-40 shrink-0 rounded-md border border-zinc-300 bg-white" />
+            <div className="flex flex-1 flex-col justify-center gap-2">
+              <div className="h-2.5 w-3/4 rounded bg-zinc-300" />
+              <div className="h-2.5 w-2/3 rounded bg-zinc-200" />
+              <div className="h-2.5 w-1/2 rounded bg-zinc-200" />
+              <div className="mt-2 h-5 w-24 rounded bg-zinc-300" />
+            </div>
+          </div>
+
+          <div>
+            <h4 className="mb-2 text-sm font-semibold text-zinc-700">About Us</h4>
+            <div className="grid grid-cols-[minmax(0,1fr)_140px] gap-4">
+              <div className="space-y-2 pt-2">
+                <div className="h-2 w-full rounded bg-zinc-200" />
+                <div className="h-2 w-11/12 rounded bg-zinc-200" />
+                <div className="h-2 w-10/12 rounded bg-zinc-200" />
+                <div className="h-2 w-9/12 rounded bg-zinc-200" />
+              </div>
+              <div className="aspect-square rounded-md border border-zinc-300 bg-white" />
+            </div>
+          </div>
+
+          <div>
+            <h4 className="mb-2 text-sm font-semibold text-zinc-700">Our Features</h4>
+            <div className="grid grid-cols-3 gap-3">
+              {[0, 1, 2].map(i => (
+                <div key={i} className="rounded-lg border border-zinc-200 p-3">
+                  <div className="mx-auto mb-2 h-8 w-8 rounded-full bg-zinc-100" />
+                  <div className="mx-auto mt-3 h-1.5 w-3/4 rounded bg-zinc-200" />
+                  <div className="mx-auto mt-1.5 h-1.5 w-2/3 rounded bg-zinc-200" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-lg bg-muted/40 px-4 py-5 text-center">
+            <div className="mx-auto h-2 w-2/3 rounded bg-zinc-300" />
+            <div className="mx-auto mt-2 h-2 w-1/2 rounded bg-zinc-200" />
+            <div className="mx-auto mt-3 inline-block rounded border border-zinc-300 px-3 py-1 text-[10px] text-zinc-500">
+              Get Started
+            </div>
+          </div>
+        </div>
+
+        {/* Sidebar — the actual widget lives here */}
+        <div className="lg:sticky lg:top-4">
+          <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
+            {children}
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="border-t border-border bg-muted/30 px-5 py-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+          <div className="flex items-center gap-2">
+            <div className="h-5 w-5 rounded-sm border border-zinc-300" />
+            <span className="text-xs text-zinc-500">ExampleCo</span>
+          </div>
+          {["Company", "Products", "Resources", "Support"].map(label => (
+            <div key={label} className="space-y-1.5">
+              <div className="text-[10px] font-semibold text-zinc-500">{label}</div>
+              <div className="h-1.5 w-16 rounded bg-zinc-200" />
+              <div className="h-1.5 w-12 rounded bg-zinc-200" />
+              <div className="h-1.5 w-14 rounded bg-zinc-200" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }

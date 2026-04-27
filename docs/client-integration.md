@@ -20,7 +20,6 @@ auth events.
 <script>
   const widget = UnigoxWidget.init({
     container: "#unigox-widget",
-    partner: "your-partner-id",
     crypto: "USDT",
     fiat: "USD",
     amount: 100,
@@ -34,6 +33,32 @@ auth events.
 That's it. The loader injects the iframe with the right `sandbox` and `allow`
 attributes — you do **not** need to construct the iframe yourself.
 
+No registration, partner agreement or API key is required to embed the widget.
+All options below are optional unless marked otherwise.
+
+---
+
+## Earn referrals from your traffic (no integration)
+
+If you have a Unigox account and want every signup that goes through the widget
+on your site to count as your referral, just pass your Unigox username as `ref`:
+
+```html
+<div id="unigox-widget"></div>
+<script src="https://unigox.com/widget.js"></script>
+<script>
+  UnigoxWidget.init({
+    container: "#unigox-widget",
+    ref: "your-unigox-username",
+  });
+</script>
+```
+
+That's the entire integration. Anyone who signs up while the widget is loaded
+on your page is attributed to your account — same mechanism as the
+`unigox.com/?ref=…` link, but built into the widget so you can earn off the
+buy flow directly on your site.
+
 ---
 
 ## Init options
@@ -43,17 +68,18 @@ Pass these to `UnigoxWidget.init(options)`.
 | Option              | Type                                      | Required | Default       | Description                                                                                                               |
 | ------------------- | ----------------------------------------- | -------- | ------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `container`         | `string \| HTMLElement`                   | yes      | —             | CSS selector or DOM element. The iframe is appended to it.                                                                |
-| `partner`           | `string`                                  | no       | —             | Your partner identifier for attribution and reporting.                                                                    |
+| `partner`           | `string`                                  | no       | —             | Free-form attribution identifier — any string you want to see in your reports. Not validated. Optional.                   |
+| `ref`               | `string`                                  | no       | —             | Your Unigox username. New signups initiated inside the widget are credited to this user (referral). Use this for no-integration deployments — paste your username and earn referrals from anyone who signs up via the widget on your site. |
 | `type`              | `"buy" \| "sell" \| "buy-sell" \| "buy-with-sendout"` | no | `"buy-sell"`  | Which side opens first. `"buy-sell"` shows the full buy/sell toggle. `"buy-with-sendout"` adds an automatic sendout step — see below. `"both"` is still accepted as an alias for `"buy-sell"` for back-compat. |
 | `sendoutAddress`    | `string`                                  | conditional | —          | **Required when `type=buy-with-sendout`.** Destination address the purchased crypto is sent to after the trade (EVM `0x…` or Solana base58). |
-| `sendoutNetwork`    | `number`                                  | conditional | —          | **Required when `type=buy-with-sendout`.** Destination chain id (e.g. `1` = Ethereum, `10` = Optimism, `137` = Polygon, `8453` = Base, `42161` = Arbitrum). |
+| `sendoutNetwork`    | `string`                                  | conditional | —          | **Required when `type=buy-with-sendout`.** Destination network as a blockchain ticker or name. Accepted values: `"ethereum"` / `"eth"`, `"optimism"` / `"op"`, `"polygon"` / `"pol"`, `"base"`, `"arbitrum"` / `"arb"`. Numeric chain ids are not accepted. |
 | `crypto`            | `string`                                  | no       | auto          | Pre-selected crypto ticker (e.g. `"USDT"`, `"BTC"`, `"ETH"`). Falls back to USDT or the user's balance.                   |
 | `fiat`              | `string`                                  | no       | auto          | Pre-selected fiat code (e.g. `"USD"`, `"EUR"`, `"VND"`). Falls back to the user's country currency.                       |
 | `amount`            | `number`                                  | no       | —             | Pre-filled amount. For `type=buy` this is the **fiat** side ("You spend"); for `type=sell` it is the **crypto** side.     |
 | `email`             | `string`                                  | no       | —             | Prefills the login email. Combined with `requireLogin` it drives the auto-login flow.                                     |
 | `theme`             | `"light" \| "dark"`                       | no       | `"light"`     | Visual theme.                                                                                                             |
 | `language`          | `string`                                  | no       | `"en"`        | BCP-47-style language code. Currently only English is fully translated.                                                   |
-| `loginMethods`      | `"email" \| "web3" \| "ton" \| "all"` or CSV | no    | `"email"`     | Which login options are shown. CSV combinations allowed: `"email,web3"`, `"email,ton"`, `"web3,ton"`. `"all"` = all three. |
+| `loginMethods`      | `"email" \| "web3" \| "ton" \| "all"` or multiple options | no | `"all"` | Which login options to show. Pass a single value, `"all"` for all three, or multiple options separated by commas: `"email,web3"`, `"email,ton"`, `"web3,ton"`. |
 | `requireLogin`      | `boolean`                                 | no       | `false`       | If `true`, force the login screen before the widget opens even when anonymous trading would otherwise be possible.        |
 | `applyAttribution`  | `boolean`                                 | no       | `true`        | Toggles the "Powered by Unigox" footer inside the widget.                                                                 |
 | `width`             | `string`                                  | no       | `"100%"`      | Iframe width (any CSS length).                                                                                            |
@@ -222,7 +248,7 @@ partner-configured external address over our existing bridge relay.
     partner: "acme",
     type: "buy-with-sendout",
     sendoutAddress: "0xAbCdEf0123456789abcdef0123456789AbCdEf01",
-    sendoutNetwork: 1, // Ethereum
+    sendoutNetwork: "ethereum", // also accepts "eth", "polygon"/"pol", "optimism"/"op", "base", "arbitrum"/"arb"
     crypto: "USDC",
     fiat: "USD",
     amount: 100,
@@ -251,9 +277,12 @@ partner-configured external address over our existing bridge relay.
   bridge) and must pass EIP-55 checksum validation when mixed-case. Malformed
   or wrong-checksum addresses render a "Widget misconfigured" screen before
   any trade is created, so the user cannot proceed.
-- `sendoutNetwork` must be a chain id supported by the Unigox bridge for the
-  chosen `crypto`. Unsupported combinations render a "Sendout misconfigured"
-  screen inside the widget.
+- `sendoutNetwork` must be a ticker the widget recognises (`ethereum` / `eth`,
+  `optimism` / `op`, `polygon` / `pol`, `base`, `arbitrum` / `arb`) **and** the
+  resulting chain must be supported by the Unigox bridge for the chosen
+  `crypto`. Unsupported combinations render a "Sendout misconfigured" screen
+  inside the widget. Unknown tickers render a "Missing required
+  `sendoutNetwork` parameter." configuration error.
 - Today the bridge supports **USDC** and **USDT** as source assets. If you
   plan to use other tickers, contact support first.
 - The crypto selector inside the widget is **not** filtered — the user can
