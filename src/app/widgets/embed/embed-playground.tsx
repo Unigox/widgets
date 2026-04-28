@@ -46,8 +46,12 @@ const sendoutNetworkOptions: SendoutNetwork[] = [
   { ticker: "ethereum", name: "Ethereum" },
   { ticker: "optimism", name: "Optimism" },
   { ticker: "polygon", name: "Polygon" },
+  { ticker: "unichain", name: "Unichain" },
   { ticker: "base", name: "Base" },
   { ticker: "arbitrum", name: "Arbitrum" },
+  { ticker: "avalanche", name: "Avalanche" },
+  { ticker: "hyperevm", name: "HyperEVM" },
+  { ticker: "solana", name: "Solana" },
 ]
 
 function useSupportedPairs() {
@@ -820,12 +824,11 @@ function WebsiteMockup({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        {/* Sidebar — the actual widget lives here */}
-        <div className="lg:sticky lg:top-4">
-          <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
-            {children}
-          </div>
-        </div>
+        {/* Sidebar — the widget renders directly into the page, with no
+            extra card / border. This matches how a partner integration
+            actually looks: the iframe sits in the page flow without any
+            wrapper styling provided by the host. */}
+        <div className="lg:sticky lg:top-4">{children}</div>
       </div>
 
       {/* Footer */}

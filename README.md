@@ -4,16 +4,25 @@ Next.js app hosting the live **integration playground** for the Unigox embeddabl
 widget. Partners use it to configure the widget visually, copy the resulting
 embed snippet, and preview the iframe before shipping it to their own site.
 
-Live playground: `<PLAYGROUND_URL>`
+Live playground: [widgets.unigox.app](https://widgets.unigox.app)
 
 ## Docs
 
-- [`docs/client-integration.md`](docs/client-integration.md) — **partner-facing**
-  integration guide: copy-paste quickstart, full list of init options, callbacks,
-  CSP / Permissions-Policy requirements, session-reuse behavior.
-- [`docs/embed-widget.md`](docs/embed-widget.md) — developer-oriented reference
-  for the `/embed` route on `unigox.com`, the postMessage protocol, and how to
-  run the playground against a local `unigox.com` dev server.
+[`docs/client-integration.md`](docs/client-integration.md) is the single
+integration guide — quickstart, full init options, callbacks, postMessage
+protocol, CSP / Permissions-Policy, session reuse, and the buy-with-sendout
+flow. Partners and maintainers both work from this one file.
+
+[`examples/`](examples/) holds stack-specific copy/paste integrations:
+vanilla HTML, React, and WordPress. Each example tracks the v1 loader and
+is updated alongside breaking-change releases.
+
+[`CHANGELOG.md`](CHANGELOG.md) tracks every partner-visible change. When
+shipping a change in `unigox.com/public/widget.js` or `unigox.com/app/embed/*`
+that an integrator can observe, add a `[Unreleased]` entry here in the same
+PR. The compatibility contract that constrains what we can change without a
+new loader URL lives in
+[Versioning & compatibility](docs/client-integration.md#versioning--compatibility).
 
 ## Development
 
