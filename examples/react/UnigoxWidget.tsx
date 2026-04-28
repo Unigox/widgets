@@ -41,31 +41,54 @@ export interface UnigoxOptions {
   onTradeCompleted?: (e: { tradeId: number }) => void;
   onSendoutStarted?: (e: { tradeId: number; address: string; chainId: number }) => void;
   onSendoutCompleted?: (e: { tradeId: number; address: string; chainId: number; txHash?: string }) => void;
-  onSendoutFailed?: (e: { tradeId: number; code: string; message: string }) => void;
-  onWidgetError?: (e: { code: string; message: string }) => void;
+  onSendoutFailed?: (e: {
+    tradeId: number;
+    code: "SENDOUT_NOT_SUPPORTED" | "SENDOUT_QUOTE_FAILED" | "SENDOUT_BRIDGE_FAILED" | "SENDOUT_UNKNOWN";
+    message: string;
+  }) => void;
+  onWidgetError?: (e: {
+    code: "WIDGET_MISSING_SENDOUT_ADDRESS" | "WIDGET_MISSING_SENDOUT_NETWORK" | "WIDGET_INVALID_SENDOUT_ADDRESS";
+    message: string;
+  }) => void;
+}
+
+export interface UnigoxConfigureParams {
+  type?: "buy" | "sell";
+  crypto?: string;
+  fiat?: string;
+  amount?: number | string;
+  vendor?: string;
 }
 
 export interface UnigoxHandle {
-  configure(params: Record<string, unknown>): void;
+  configure(params: UnigoxConfigureParams): void;
   reset(): void;
   destroy(): void;
 }
 
 const LOADER_SRC = "https://unigox.com/widget.js";
 
+// Module-level promise so that mounting multiple <UnigoxWidget /> instances on
+// the same page resolves to a single in-flight loader request — without it,
+// two components racing in the same tick both miss the DOM check and inject
+// duplicate <script> tags.
+let loaderPromise: Promise<void> | null = null;
+
 function ensureLoader(): Promise<void> {
   if (typeof window === "undefined") return Promise.resolve();
   if (window.UnigoxWidget) return Promise.resolve();
+  if (loaderPromise) return loaderPromise;
 
   const existing = document.querySelector<HTMLScriptElement>(`script[src="${LOADER_SRC}"]`);
   if (existing) {
-    return new Promise((resolve, reject) => {
+    loaderPromise = new Promise((resolve, reject) => {
       existing.addEventListener("load", () => resolve());
       existing.addEventListener("error", () => reject(new Error("widget.js failed to load")));
     });
+    return loaderPromise;
   }
 
-  return new Promise((resolve, reject) => {
+  loaderPromise = new Promise((resolve, reject) => {
     const script = document.createElement("script");
     script.src = LOADER_SRC;
     script.async = true;
@@ -73,6 +96,7 @@ function ensureLoader(): Promise<void> {
     script.onerror = () => reject(new Error("widget.js failed to load"));
     document.head.appendChild(script);
   });
+  return loaderPromise;
 }
 
 type Props = Omit<UnigoxOptions, "container"> & {
