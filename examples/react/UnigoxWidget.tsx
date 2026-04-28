@@ -79,16 +79,28 @@ function ensureLoader(): Promise<void> {
   if (window.UnigoxWidget) return Promise.resolve();
   if (loaderPromise) return loaderPromise;
 
+  // On failure (CSP block, network error) we null the cached promise so the
+  // next mount can retry — otherwise every subsequent <UnigoxWidget /> on
+  // the page would re-throw the same rejection forever.
+  const reset = () => {
+    loaderPromise = null;
+  };
+
   const existing = document.querySelector<HTMLScriptElement>(`script[src="${LOADER_SRC}"]`);
   if (existing) {
-    loaderPromise = new Promise((resolve, reject) => {
-      existing.addEventListener("load", () => resolve());
-      existing.addEventListener("error", () => reject(new Error("widget.js failed to load")));
+    loaderPromise = new Promise<void>((resolve, reject) => {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener(
+        "error",
+        () => reject(new Error("widget.js failed to load")),
+        { once: true },
+      );
     });
+    loaderPromise.catch(reset);
     return loaderPromise;
   }
 
-  loaderPromise = new Promise((resolve, reject) => {
+  loaderPromise = new Promise<void>((resolve, reject) => {
     const script = document.createElement("script");
     script.src = LOADER_SRC;
     script.async = true;
@@ -96,6 +108,7 @@ function ensureLoader(): Promise<void> {
     script.onerror = () => reject(new Error("widget.js failed to load"));
     document.head.appendChild(script);
   });
+  loaderPromise.catch(reset);
   return loaderPromise;
 }
 
