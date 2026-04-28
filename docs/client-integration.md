@@ -5,7 +5,7 @@ loader creates a cross-origin `<iframe>` pointing at `https://unigox.com/embed`,
 wires up the required browser permissions, and exposes callbacks for trade and
 auth events.
 
-> **Live playground:** `<PLAYGROUND_URL>`
+> **Live playground:** [widgets.unigox.app](https://widgets.unigox.app)
 >
 > Use it to try every option below in your browser and copy the generated
 > snippet straight into your page.
@@ -20,7 +20,6 @@ auth events.
 <script>
   const widget = UnigoxWidget.init({
     container: "#unigox-widget",
-    partner: "your-partner-id",
     crypto: "USDT",
     fiat: "USD",
     amount: 100,
@@ -34,6 +33,37 @@ auth events.
 That's it. The loader injects the iframe with the right `sandbox` and `allow`
 attributes — you do **not** need to construct the iframe yourself.
 
+No registration, partner agreement or API key is required to embed the widget.
+All options below are optional unless marked otherwise.
+
+> **Need a starting point for your stack?** Copy one of the
+> [`examples/`](../examples/) folders — vanilla HTML, React, or
+> WordPress — and tweak from there. Each example mirrors this guide and
+> stays in sync with releases.
+
+---
+
+## Earn referrals from your traffic (no integration)
+
+If you have a Unigox account and want every signup that goes through the widget
+on your site to count as your referral, just pass your Unigox username as `ref`:
+
+```html
+<div id="unigox-widget"></div>
+<script src="https://unigox.com/widget.js"></script>
+<script>
+  UnigoxWidget.init({
+    container: "#unigox-widget",
+    ref: "your-unigox-username",
+  });
+</script>
+```
+
+That's the entire integration. Anyone who signs up while the widget is loaded
+on your page is attributed to your account — same mechanism as the
+`unigox.com/?ref=…` link, but built into the widget so you can earn off the
+buy flow directly on your site.
+
 ---
 
 ## Init options
@@ -43,17 +73,18 @@ Pass these to `UnigoxWidget.init(options)`.
 | Option              | Type                                      | Required | Default       | Description                                                                                                               |
 | ------------------- | ----------------------------------------- | -------- | ------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `container`         | `string \| HTMLElement`                   | yes      | —             | CSS selector or DOM element. The iframe is appended to it.                                                                |
-| `partner`           | `string`                                  | no       | —             | Your partner identifier for attribution and reporting.                                                                    |
+| `partner`           | `string`                                  | no       | —             | Free-form attribution identifier — any string you want to see in your reports. Not validated. Optional.                   |
+| `ref`               | `string`                                  | no       | —             | Your Unigox username. New signups initiated inside the widget are credited to this user (referral). Use this for no-integration deployments — paste your username and earn referrals from anyone who signs up via the widget on your site. |
 | `type`              | `"buy" \| "sell" \| "buy-sell" \| "buy-with-sendout"` | no | `"buy-sell"`  | Which side opens first. `"buy-sell"` shows the full buy/sell toggle. `"buy-with-sendout"` adds an automatic sendout step — see below. `"both"` is still accepted as an alias for `"buy-sell"` for back-compat. |
 | `sendoutAddress`    | `string`                                  | conditional | —          | **Required when `type=buy-with-sendout`.** Destination address the purchased crypto is sent to after the trade (EVM `0x…` or Solana base58). |
-| `sendoutNetwork`    | `number`                                  | conditional | —          | **Required when `type=buy-with-sendout`.** Destination chain id (e.g. `1` = Ethereum, `10` = Optimism, `137` = Polygon, `8453` = Base, `42161` = Arbitrum). |
+| `sendoutNetwork`    | `string`                                  | conditional | —          | **Required when `type=buy-with-sendout`.** Destination network as a blockchain ticker or name. Accepted values: `"ethereum"` / `"eth"`, `"optimism"` / `"op"`, `"polygon"` / `"pol"`, `"unichain"` / `"uni"`, `"base"`, `"arbitrum"` / `"arb"`, `"avalanche"` / `"avax"`, `"hyperevm"` / `"hype"`, `"solana"` / `"sol"`. Numeric chain ids are not accepted. |
 | `crypto`            | `string`                                  | no       | auto          | Pre-selected crypto ticker (e.g. `"USDT"`, `"BTC"`, `"ETH"`). Falls back to USDT or the user's balance.                   |
 | `fiat`              | `string`                                  | no       | auto          | Pre-selected fiat code (e.g. `"USD"`, `"EUR"`, `"VND"`). Falls back to the user's country currency.                       |
 | `amount`            | `number`                                  | no       | —             | Pre-filled amount. For `type=buy` this is the **fiat** side ("You spend"); for `type=sell` it is the **crypto** side.     |
 | `email`             | `string`                                  | no       | —             | Prefills the login email. Combined with `requireLogin` it drives the auto-login flow.                                     |
 | `theme`             | `"light" \| "dark"`                       | no       | `"light"`     | Visual theme.                                                                                                             |
-| `language`          | `string`                                  | no       | `"en"`        | BCP-47-style language code. Currently only English is fully translated.                                                   |
-| `loginMethods`      | `"email" \| "web3" \| "ton" \| "all"` or CSV | no    | `"email"`     | Which login options are shown. CSV combinations allowed: `"email,web3"`, `"email,ton"`, `"web3,ton"`. `"all"` = all three. |
+| `language`          | `"en" \| "es"`                            | no       | `"en"`        | UI language. Unsupported values fall back to `"en"`. More locales arrive as they are translated.                          |
+| `loginMethods`      | `"email" \| "web3" \| "ton" \| "all"` or multiple options | no | `"all"` | Which login options to show. Pass a single value, `"all"` for all three, or multiple options separated by commas: `"email,web3"`, `"email,ton"`, `"web3,ton"`. |
 | `requireLogin`      | `boolean`                                 | no       | `false`       | If `true`, force the login screen before the widget opens even when anonymous trading would otherwise be possible.        |
 | `applyAttribution`  | `boolean`                                 | no       | `true`        | Toggles the "Powered by Unigox" footer inside the widget.                                                                 |
 | `width`             | `string`                                  | no       | `"100%"`      | Iframe width (any CSS length).                                                                                            |
@@ -61,15 +92,28 @@ Pass these to `UnigoxWidget.init(options)`.
 
 ### Callbacks
 
-| Callback             | Payload                                                    | Fires when                                                                                 |
-| -------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `onReady`            | —                                                          | The widget finished its initial render.                                                    |
-| `onAuthChange`       | `{ isAuthenticated }`                                      | The user signs in or signs out.                                                            |
-| `onTradeStarted`     | `{ tradeId }`                                              | The user confirmed a trade.                                                                |
-| `onTradeCompleted`   | `{ tradeId }`                                              | A trade reached a terminal success.                                                        |
-| `onSendoutStarted`   | `{ tradeId, address, chainId }`                            | *(buy-with-sendout only)* The bridge to the partner address was submitted.                 |
-| `onSendoutCompleted` | `{ tradeId, address, chainId, txHash? }`                   | *(buy-with-sendout only)* The bridge confirmed on the destination chain.                   |
-| `onSendoutFailed`    | `{ tradeId, reason }`                                      | *(buy-with-sendout only)* The bridge step errored. The user can retry from inside the widget. |
+> **All callbacks are informational, not authoritative.** They are fired
+> from the iframe via `window.postMessage` — anything running in the
+> top-level page can spoof or replay them. Use callbacks for UX (loading
+> state, redirect after success, fire your own analytics) and for
+> non-financial logging. **Do not** use them as proof-of-state for
+> business decisions like releasing a product, crediting an account, or
+> paying out funds. For those, verify via the Unigox API (server-to-server)
+> or, when applicable, via independent on-chain confirmation.
+>
+> Server-signed webhooks are on the roadmap and will be the authoritative
+> channel; until they ship, treat every event below as a hint, not a fact.
+
+| Callback             | Payload                                                    | Fires when                                                                                 | Verifiable? |
+| -------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ----------- |
+| `onReady`            | —                                                          | The widget finished its initial render.                                                    | UX-only     |
+| `onAuthChange`       | `{ isAuthenticated }`                                      | The user signs in or signs out.                                                            | UX-only     |
+| `onTradeStarted`     | `{ tradeId, tradeType }`                                   | The user confirmed a trade.                                                                | Verify via API |
+| `onTradeCompleted`   | `{ tradeId }`                                              | A trade reached a terminal success.                                                        | Verify via API |
+| `onSendoutStarted`   | `{ tradeId, address, chainId }`                            | *(buy-with-sendout only)* The bridge to the partner address was submitted.                 | Verify via API |
+| `onSendoutCompleted` | `{ tradeId, address, chainId, txHash? }`                   | *(buy-with-sendout only)* The bridge confirmed on the destination chain.                   | `txHash` independently verifiable on-chain |
+| `onSendoutFailed`    | `{ tradeId, code, message }`                               | *(buy-with-sendout only)* The sendout step failed. `code` is one of the `SENDOUT_*` codes — see [Error codes](#error-codes). | UX-only     |
+| `onWidgetError`      | `{ code, message }`                                        | A misconfig error fired before any trade existed (e.g. missing/invalid `sendoutAddress`). `code` is one of the `WIDGET_*` codes. | UX-only     |
 
 ### Handle methods
 
@@ -81,8 +125,15 @@ widget.reset();                                     // send user back to the sta
 widget.destroy();                                   // remove the iframe + listeners
 ```
 
-`configure` accepts the same shape as the init URL params (`type`, `crypto`,
-`fiat`, `amount`, `vendor`).
+`configure(params)` accepts a subset of the init options:
+
+| Param      | Type     | Notes                                                                                                |
+| ---------- | -------- | ---------------------------------------------------------------------------------------------------- |
+| `type`     | `string` | `"buy"` or `"sell"`. Case-insensitive (`"BUY"` works too).                                           |
+| `crypto`   | `string` | Crypto ticker — same values as `init({ crypto })`.                                                   |
+| `fiat`     | `string` | Fiat code — same values as `init({ fiat })`.                                                         |
+| `amount`   | `string \| number` | Pre-fills the amount field. Fiat side for BUY, crypto side for SELL.                       |
+| `vendor`   | `string` | Unigox username to bias the offer matcher toward (post-init only — there is no `init({ vendor })`).  |
 
 ---
 
@@ -131,21 +182,41 @@ attributes verbatim — each flag gates a user-visible flow:
 
 ## Host-page headers
 
+> **Skip this section** if your site does not set a `Content-Security-Policy`
+> or a `Permissions-Policy` header. The widget works out of the box on the
+> default browser permissions — these rules only matter if you have already
+> tightened them.
+
+### One-block paste (strict-CSP sites)
+
+If your site ships **both** a strict CSP and a Permissions-Policy, drop these
+two response headers on every page that loads the widget:
+
+```
+Content-Security-Policy: script-src https://unigox.com; frame-src https://unigox.com
+Permissions-Policy: storage-access=(self "https://unigox.com"), publickey-credentials-get=(self "https://unigox.com"), publickey-credentials-create=(self "https://unigox.com")
+```
+
+Merge them into your existing directives — do not replace what you already have.
+Each line below explains what it unlocks and what breaks without it.
+
 ### Content-Security-Policy
 
-If your site ships a CSP, allow framing `unigox.com`:
+| Directive                              | Why it matters                                                                                            |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `script-src https://unigox.com`        | Allows `widget.js` to execute. Without it the loader silently fails with a CSP-violation error in the console — no iframe is created. |
+| `frame-src https://unigox.com`         | Allows the iframe at `unigox.com/embed` to load. Without it the iframe stays blank. (`child-src` on the legacy directive.) |
 
-```
-frame-src https://unigox.com;
-```
-
-(Or `child-src` on the legacy directive.) You do **not** need anything in
-`script-src` — `widget.js` is a normal third-party script.
+Anything else (`connect-src`, `style-src`, `img-src`) does not need a Unigox
+entry: all those requests originate **inside** the iframe, which has its own
+document and is not constrained by the host page's CSP.
 
 ### Permissions-Policy
 
-If your site sets a `Permissions-Policy`, delegate these to `unigox.com` so the
-iframe's `allow` attribute is honored:
+The widget asks for several powerful browser features via the iframe's `allow`
+attribute (set automatically by `widget.js`). If your top-level page also sets
+a `Permissions-Policy`, the host's policy wins — you must delegate those
+features to `unigox.com` for the `allow` attribute to take effect:
 
 ```
 Permissions-Policy: storage-access=(self "https://unigox.com"),
@@ -153,8 +224,10 @@ Permissions-Policy: storage-access=(self "https://unigox.com"),
                     publickey-credentials-create=(self "https://unigox.com")
 ```
 
-Without this, ambient session reuse degrades — users will be asked to log in
-again every visit instead of reusing their existing `unigox.com` session.
+| Feature                          | What breaks without it                                                                          |
+| -------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `storage-access`                 | Ambient session reuse — users have to log in on every visit instead of reusing their `unigox.com` session. |
+| `publickey-credentials-get/create` | Passkey (WebAuthn) sign-in stops working.                                                     |
 
 ---
 
@@ -190,19 +263,21 @@ speaks `window.postMessage`. Messages are tagged with
 | ------------------------- | ------------------------------------------ |
 | `UNIGOX_READY`            | —                                          |
 | `UNIGOX_RESIZE`           | `{ height: number }`                       |
-| `UNIGOX_AUTH_STATE`       | `{ isAuthenticated }`                      |
-| `UNIGOX_TRADE_STARTED`    | `{ tradeId }`                              |
-| `UNIGOX_TRADE_COMPLETED`  | `{ tradeId }`                              |
-| `UNIGOX_SENDOUT_STARTED`  | `{ tradeId, address, chainId }`            |
-| `UNIGOX_SENDOUT_COMPLETED`| `{ tradeId, address, chainId, txHash? }`   |
-| `UNIGOX_SENDOUT_FAILED`   | `{ tradeId, reason }`                      |
+| `UNIGOX_AUTH_STATE`       | `{ isAuthenticated: boolean }`             |
+| `UNIGOX_TRADE_STARTED`    | `{ tradeId: number, tradeType: "BUY" \| "SELL" }` |
+| `UNIGOX_TRADE_COMPLETED`  | `{ tradeId: number }`                      |
+| `UNIGOX_SENDOUT_STARTED`  | `{ tradeId: number, address: string, chainId: number }` |
+| `UNIGOX_SENDOUT_COMPLETED`| `{ tradeId: number, address: string, chainId: number, txHash?: string }` |
+| `UNIGOX_SENDOUT_FAILED`   | `{ tradeId: number, code: SendoutErrorCode, message: string }` |
+| `UNIGOX_WIDGET_ERROR`     | `{ code: WidgetErrorCode, message: string }` |
 
 **Host → widget**
 
-| `type`          | Payload                         |
-| --------------- | ------------------------------- |
-| `UNIGOX_CONFIG` | Same shape as `init` URL params |
-| `UNIGOX_RESET`  | —                               |
+| `type`          | Payload                                                                |
+| --------------- | ---------------------------------------------------------------------- |
+| `UNIGOX_PING`   | —. Reply is `UNIGOX_READY`.                                            |
+| `UNIGOX_CONFIG` | `{ type?, crypto?, fiat?, amount?, vendor? }` — same fields as `widget.configure()`. |
+| `UNIGOX_RESET`  | —                                                                      |
 
 ---
 
@@ -222,7 +297,7 @@ partner-configured external address over our existing bridge relay.
     partner: "acme",
     type: "buy-with-sendout",
     sendoutAddress: "0xAbCdEf0123456789abcdef0123456789AbCdEf01",
-    sendoutNetwork: 1, // Ethereum
+    sendoutNetwork: "ethereum", // also "eth", "polygon"/"pol", "optimism"/"op", "unichain"/"uni", "base", "arbitrum"/"arb", "avalanche"/"avax", "hyperevm"/"hype", "solana"/"sol"
     crypto: "USDC",
     fiat: "USD",
     amount: 100,
@@ -247,13 +322,18 @@ partner-configured external address over our existing bridge relay.
 
 ### Requirements & constraints
 
-- `sendoutAddress` must be a valid EVM `0x…` address (EVM-only for the MVP
-  bridge) and must pass EIP-55 checksum validation when mixed-case. Malformed
-  or wrong-checksum addresses render a "Widget misconfigured" screen before
-  any trade is created, so the user cannot proceed.
-- `sendoutNetwork` must be a chain id supported by the Unigox bridge for the
-  chosen `crypto`. Unsupported combinations render a "Sendout misconfigured"
-  screen inside the widget.
+- `sendoutAddress` must match the chosen network's address format. EVM
+  networks require a `0x…` address that passes EIP-55 checksum validation when
+  mixed-case; Solana requires a base58 address. Malformed addresses render a
+  "Widget misconfigured" screen before any trade is created, so the user
+  cannot proceed.
+- `sendoutNetwork` must be a ticker the widget recognises (`ethereum` / `eth`,
+  `optimism` / `op`, `polygon` / `pol`, `unichain` / `uni`, `base`,
+  `arbitrum` / `arb`, `avalanche` / `avax`, `hyperevm` / `hype`,
+  `solana` / `sol`) **and** the resulting chain must be supported by the
+  Unigox bridge for the chosen `crypto`. Unsupported combinations render a
+  "Sendout misconfigured" screen inside the widget. Unknown tickers render a
+  "Missing required `sendoutNetwork` parameter." configuration error.
 - Today the bridge supports **USDC** and **USDT** as source assets. If you
   plan to use other tickers, contact support first.
 - The crypto selector inside the widget is **not** filtered — the user can
@@ -292,10 +372,123 @@ tracked as follow-ups. Plan for them on your side until they land:
 
 ---
 
+## Error codes
+
+Error events carry a stable `code` field — branch on `code` for business
+logic, treat `message` as a human-readable hint that may be reworded between
+releases. Codes never change shape or meaning within the **v1** loader.
+
+### `WIDGET_*` — `onWidgetError({ code, message })`
+
+These fire **before any trade exists**. Recovery is always a configuration
+fix on the partner side; the user cannot continue. The widget also displays
+a "Widget misconfigured" screen so end-users see something coherent.
+
+| Code                                | When                                                                                  | Recovery                                                            |
+| ----------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `WIDGET_MISSING_SENDOUT_ADDRESS`    | `type=buy-with-sendout` was used without `sendoutAddress`.                            | Re-init with a non-empty `sendoutAddress`.                          |
+| `WIDGET_MISSING_SENDOUT_NETWORK`    | `type=buy-with-sendout` was used without `sendoutNetwork`, or the ticker is unknown.  | Re-init with a recognised ticker (see [`sendoutNetwork`](#init-options)). |
+| `WIDGET_INVALID_SENDOUT_ADDRESS`    | `sendoutAddress` does not match the chosen network's format (bad EIP-55 checksum on EVM, or non-base58 on Solana). | Re-init with an address valid for the chosen `sendoutNetwork`. |
+
+### `SENDOUT_*` — `onSendoutFailed({ tradeId, code, message })`
+
+These fire **after a trade exists**. The user can usually retry from inside
+the widget; the partner is informed so it can react in its own UI / analytics.
+
+| Code                     | When                                                                          | Funds moved? | Retryable                                            |
+| ------------------------ | ----------------------------------------------------------------------------- | ------------ | ---------------------------------------------------- |
+| `SENDOUT_NOT_SUPPORTED`  | The combination of the user's chosen crypto and `sendoutNetwork` is not on the bridge. The widget shows a "Sendout misconfigured" screen. | No           | No — partner-side fix only (different `sendoutNetwork` or restrict `crypto`). |
+| `SENDOUT_QUOTE_FAILED`   | The bridge quote API rejected the request (no liquidity, network down, etc.).  | No           | Yes — user retries from inside the widget.            |
+| `SENDOUT_BRIDGE_FAILED`  | Source-chain transaction submitted but destination did not confirm, or the relay errored mid-flight. | Maybe — funds may be in flight. | Yes inside the widget; if it keeps failing, recovery via [`unigox.com/wallet`](https://unigox.com/wallet) and contact support. |
+| `SENDOUT_UNKNOWN`        | Unclassified upstream failure. Treat as `SENDOUT_BRIDGE_FAILED` for retry purposes. | Maybe        | Yes — same recovery path.                             |
+
+### Branching example
+
+```js
+UnigoxWidget.init({
+  container: "#unigox-widget",
+  type: "buy-with-sendout",
+  sendoutAddress: "0xAbCd…",
+  sendoutNetwork: "base",
+  onWidgetError: (e) => {
+    // Always a partner-side bug. Surface a config-error UI and re-init.
+    analytics.track("unigox_widget_error", e);
+  },
+  onSendoutFailed: ({ tradeId, code, message }) => {
+    if (code === "SENDOUT_NOT_SUPPORTED") {
+      analytics.track("unigox_sendout_unsupported", { tradeId });
+      // The user is stuck — direct them to support or restrict crypto on your side.
+    } else if (code === "SENDOUT_BRIDGE_FAILED") {
+      // Funds may be on the way. Direct the user to unigox.com/wallet to recover.
+      showRecoveryUI(tradeId);
+    }
+    // SENDOUT_QUOTE_FAILED / SENDOUT_UNKNOWN — let the user retry inside the widget.
+  },
+});
+```
+
+---
+
+## Versioning & compatibility
+
+The loader at `https://unigox.com/widget.js` auto-updates — every page load
+fetches the latest. We commit to the following stability rules within the
+**v1** loader:
+
+- **Init options.** No existing option is ever removed or renamed. Accepted
+  types and the required-vs-optional split do not change. New optional
+  options may be added; partners should ignore options they do not recognise.
+- **Callbacks.** Existing payload fields are not renamed or removed. New
+  optional fields may be added; partners should ignore unknown fields and
+  not rely on absence.
+- **postMessage protocol.** Existing `type` values and existing payload
+  fields are stable. New `type`s and new optional payload fields may appear.
+- **Direct `/embed` URL params.** Same rules as init options.
+
+The widget UI (visual design, copy, internal step ordering, error wording)
+is **not** covered by these rules — it changes continuously. Build your
+integration on the contract above, not on screen flow or DOM structure.
+
+### Breaking changes
+
+When a breaking change is unavoidable we ship it as a new loader URL —
+`https://unigox.com/widget.v2.js` — and keep the previous URL serving the
+previous major for at least **90 days**. During that window both URLs work
+and partners migrate by changing the `<script src>` and reading the migration
+notes in [`CHANGELOG.md`](../CHANGELOG.md).
+
+We never publish breaking changes by silently flipping `widget.js`.
+
+### Tracking changes
+
+All partner-visible changes are recorded in
+[`CHANGELOG.md`](../CHANGELOG.md). Watch the file on GitHub if you want a
+notification on every release.
+
+---
+
+## Examples
+
+Stack-specific copy/paste examples live in
+[`../examples/`](../examples/). Each folder is self-contained — no build
+step beyond what your stack already needs.
+
+| Stack                                          | What it shows                                                       |
+| ---------------------------------------------- | ------------------------------------------------------------------- |
+| [`vanilla-html/`](../examples/vanilla-html/)   | One HTML file, one `<div>`, one `<script>`. The minimum integration. |
+| [`react/`](../examples/react/)                 | A reusable `UnigoxWidget` wrapper plus a sample page. SSR-safe.     |
+| [`wordpress/`](../examples/wordpress/)         | Snippet for the WordPress "Custom HTML" block, plus notes on caching plugins, AMP and CSP. |
+
+The examples track the v1 loader, so they auto-pick up additive changes
+without edits. When the contract changes (`v2`), the examples folder is
+updated alongside.
+
+---
+
 ## Debugging
 
 - Open devtools **inside the iframe** (right-click → "Inspect frame").
 - Look for log lines prefixed with `[StorageAccess]` when diagnosing session
   reuse issues.
-- Use the [playground](`<PLAYGROUND_URL>`) to reproduce regressions with a
-  configurable config panel before filing an issue.
+- Use the [playground](https://widgets.unigox.app) to reproduce regressions
+  with a configurable config panel before filing an issue.

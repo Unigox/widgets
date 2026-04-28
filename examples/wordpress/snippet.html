@@ -1,0 +1,34 @@
+<!--
+  Unigox embed widget — paste into a WordPress "Custom HTML" block, page
+  builder HTML widget, or custom theme template.
+
+  No plugin required. If your site enforces a strict Content-Security-Policy
+  (Wordfence / Solid Security / nginx headers), make sure the directives
+  below are allowed:
+
+      script-src https://unigox.com;
+      frame-src  https://unigox.com;
+
+  Full reference: ../../docs/client-integration.md
+-->
+
+<div id="unigox-widget"></div>
+
+<script src="https://unigox.com/widget.js"></script>
+
+<script>
+  UnigoxWidget.init({
+    container: "#unigox-widget",
+    type: "buy-sell",
+    crypto: "USDT",
+    fiat: "USD",
+    // partner: "examplecorp",            // optional, surfaces in your reports
+    // ref:     "your-unigox-username",   // optional, attribute signups to this Unigox account
+    onTradeCompleted: function (e) {
+      console.log("[ExampleCo] trade completed", e.tradeId);
+    },
+    onSendoutFailed: function (e) {
+      console.warn("[ExampleCo] sendout failed", e.code, e.message);
+    },
+  });
+</script>
