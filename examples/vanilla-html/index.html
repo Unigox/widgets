@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Unigox widget — vanilla HTML</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      :root { color-scheme: light; }
+      body {
+        font-family: system-ui, -apple-system, sans-serif;
+        max-width: 640px;
+        margin: 40px auto;
+        padding: 0 20px;
+        color: #111;
+      }
+      h1 { font-size: 24px; margin-bottom: 8px; }
+      p { color: #555; line-height: 1.5; }
+    </style>
+  </head>
+  <body>
+    <h1>Buy crypto on ExampleCo</h1>
+    <p>
+      Drop the widget into any page with one container <code>&lt;div&gt;</code>
+      and one <code>&lt;script&gt;</code> tag. No build step, no bundler, no
+      framework.
+    </p>
+
+    <!-- 1. Container the widget mounts into. -->
+    <div id="unigox-widget"></div>
+
+    <!-- 2. Loader script. Auto-updates within v1; see docs/client-integration.md. -->
+    <script src="https://unigox.com/widget.js"></script>
+
+    <!-- 3. Init. See docs/client-integration.md for every option. -->
+    <script>
+      var widget = UnigoxWidget.init({
+        container: "#unigox-widget",
+        type: "buy-sell",
+        crypto: "USDT",
+        fiat: "USD",
+        // partner: "examplecorp",                  // optional, for analytics
+        // ref: "your-unigox-username",             // optional, referral
+        onReady: function () {
+          console.log("[ExampleCo] widget ready");
+        },
+        onTradeCompleted: function (e) {
+          console.log("[ExampleCo] trade completed", e.tradeId);
+          // Treat as a UX hint only — verify via the Unigox API before
+          // releasing anything to the user.
+        },
+        onSendoutFailed: function (e) {
+          console.warn("[ExampleCo] sendout failed", e.code, e.message);
+        },
+      });
+
+      // The init call returns a handle for runtime control:
+      //   widget.configure({ crypto: "USDC" });
+      //   widget.reset();
+      //   widget.destroy();
+    </script>
+  </body>
+</html>
