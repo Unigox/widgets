@@ -28,6 +28,10 @@ const OFFERS_API =
   process.env.NEXT_PUBLIC_OFFERS_API ||
   "https://offers-y5u4f.ondigitalocean.app/api/v1"
 
+const CURRENCY_API =
+  process.env.NEXT_PUBLIC_CURRENCY_API ||
+  "https://currencies-khccy.ondigitalocean.app/api/v1"
+
 interface SupportedPair {
   crypto_currency_code: string
   fiat_currency_code: string
@@ -37,22 +41,69 @@ interface SupportedPair {
 interface SendoutNetwork {
   /** Canonical ticker passed to the widget (URL param value). */
   ticker: string
+  /** chain id used by the currency API. */
+  chainId: number
+  /** Fallback label; the API's chain name is preferred when available. */
   name: string
 }
 
-// Tickers accepted by the widget's `sendoutNetwork` URL param. Mirrors
-// `utils/sendout-network.ts` in the unigox.com repo — keep in sync.
-const sendoutNetworkOptions: SendoutNetwork[] = [
-  { ticker: "ethereum", name: "Ethereum" },
-  { ticker: "optimism", name: "Optimism" },
-  { ticker: "polygon", name: "Polygon" },
-  { ticker: "unichain", name: "Unichain" },
-  { ticker: "base", name: "Base" },
-  { ticker: "arbitrum", name: "Arbitrum" },
-  { ticker: "avalanche", name: "Avalanche" },
-  { ticker: "hyperevm", name: "HyperEVM" },
-  { ticker: "solana", name: "Solana" },
+// Ticker ↔ chain-id catalog for the `sendoutNetwork` URL param. Mirrors `utils/sendout-network.ts`
+// in the unigox.com repo — keep in sync. This is only the ticker vocabulary; which networks the
+// dropdown actually offers is data-driven below from the currency API (enabled_for_withdrawal).
+const sendoutNetworkCatalog: SendoutNetwork[] = [
+  { ticker: "ethereum", chainId: 1, name: "Ethereum" },
+  { ticker: "optimism", chainId: 10, name: "Optimism" },
+  { ticker: "polygon", chainId: 137, name: "Polygon" },
+  { ticker: "unichain", chainId: 130, name: "Unichain" },
+  { ticker: "base", chainId: 8453, name: "Base" },
+  { ticker: "arbitrum", chainId: 42161, name: "Arbitrum" },
+  { ticker: "avalanche", chainId: 43114, name: "Avalanche" },
+  { ticker: "bsc", chainId: 56, name: "BNB Smart Chain" },
+  { ticker: "hyperevm", chainId: 999, name: "HyperEVM" },
+  { ticker: "solana", chainId: 1151111081099710, name: "Solana" },
 ]
+
+interface BridgeChain {
+  id: number
+  name: string
+  enabled_for_withdrawal?: boolean
+}
+
+interface BridgeTokenOnChain {
+  chain: BridgeChain
+}
+
+// Sendout networks the widget can actually deliver to, driven by the currency API: only chains the
+// bridge exposes with withdrawal enabled, labelled with the API's own name. Falls back to the full
+// catalog if the API is unreachable so the playground stays usable offline.
+function useSendoutNetworks(): SendoutNetwork[] {
+  const [networks, setNetworks] = React.useState<SendoutNetwork[]>(sendoutNetworkCatalog)
+
+  React.useEffect(() => {
+    let cancelled = false
+    fetch(`${CURRENCY_API}/bridge-cryptocurrencies`)
+      .then(r => r.json())
+      .then((body: { data: BridgeTokenOnChain[] }) => {
+        if (cancelled || !Array.isArray(body?.data)) return
+        // Map chain id → API name for chains that are withdrawal-enabled.
+        const enabledNames = new Map<number, string>()
+        body.data.forEach(t => {
+          const c = t.chain
+          if (c && c.enabled_for_withdrawal !== false) enabledNames.set(c.id, c.name)
+        })
+        const available = sendoutNetworkCatalog
+          .filter(n => enabledNames.has(n.chainId))
+          .map(n => ({ ...n, name: enabledNames.get(n.chainId) ?? n.name }))
+        if (available.length > 0) setNetworks(available)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  return networks
+}
 
 function useSupportedPairs() {
   const [cryptos, setCryptos] = React.useState<string[]>([])
@@ -220,6 +271,7 @@ export function EmbedPlayground() {
   const [iframeKey, setIframeKey] = React.useState(0)
   const [previewMode, setPreviewMode] = React.useState<PreviewMode>("bare")
   const { cryptos, fiats } = useSupportedPairs()
+  const sendoutNetworks = useSendoutNetworks()
 
   // Track the latest height the widget reports via UNIGOX_RESIZE so the preview
   // iframe behaves the same way the SDK does when the host leaves height unset.
@@ -305,7 +357,7 @@ export function EmbedPlayground() {
                     value={config.sendoutNetwork}
                     onChange={e => update("sendoutNetwork", e.target.value)}
                   >
-                    {sendoutNetworkOptions.map(n => (
+                    {sendoutNetworks.map(n => (
                       <option key={n.ticker} value={n.ticker}>
                         {n.name} ({n.ticker})
                       </option>
