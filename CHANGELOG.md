@@ -12,6 +12,22 @@ The widget loader is currently on its first major version, served at
 
 ## [Unreleased]
 
+### Fixed
+
+- `onTradeStarted`, `onTradeCompleted` and `onAuthChange` now actually fire.
+  They have been documented and wired in the loader since the first release,
+  but the widget never emitted the underlying `UNIGOX_TRADE_STARTED`,
+  `UNIGOX_TRADE_COMPLETED` and `UNIGOX_AUTH_STATE` messages, so a host page
+  only ever received `onReady` and the sendout events. No integration change
+  is needed — handlers already registered start receiving events.
+  - `onTradeStarted` fires when a liquidity provider accepts and the trade
+    exists, not the moment the user presses confirm. `tradeId` is then the
+    same value `onTradeCompleted` and the `onSendout*` events carry; before
+    acceptance only a *request* exists, under a different id.
+  - `onAuthChange` also fires once on mount with the settled state, so a host
+    that mounts the widget for an already-signed-in user does not have to
+    wait for a sign-out to learn it.
+
 ### Added
 
 - `sendoutNetwork` now accepts Unichain (`unichain` / `uni`), Avalanche
