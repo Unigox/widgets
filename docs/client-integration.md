@@ -107,13 +107,22 @@ Pass these to `UnigoxWidget.init(options)`.
 | Callback             | Payload                                                    | Fires when                                                                                 | Verifiable? |
 | -------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ----------- |
 | `onReady`            | —                                                          | The widget finished its initial render.                                                    | UX-only     |
-| `onAuthChange`       | `{ isAuthenticated }`                                      | The user signs in or signs out.                                                            | UX-only     |
-| `onTradeStarted`     | `{ tradeId, tradeType }`                                   | The user confirmed a trade.                                                                | Verify via API |
+| `onAuthChange`       | `{ isAuthenticated }`                                      | The user signs in or signs out, and once on mount with the settled state.                  | UX-only     |
+| `onTradeStarted`     | `{ tradeId, tradeType }`                                   | A liquidity provider accepted the user's request and the trade now exists.                 | Verify via API |
 | `onTradeCompleted`   | `{ tradeId }`                                              | A trade reached a terminal success.                                                        | Verify via API |
 | `onSendoutStarted`   | `{ tradeId, address, chainId }`                            | *(buy-with-sendout only)* The bridge to the partner address was submitted.                 | Verify via API |
 | `onSendoutCompleted` | `{ tradeId, address, chainId, txHash? }`                   | *(buy-with-sendout only)* The bridge confirmed on the destination chain.                   | `txHash` independently verifiable on-chain |
 | `onSendoutFailed`    | `{ tradeId, code, message }`                               | *(buy-with-sendout only)* The sendout step failed. `code` is one of the `SENDOUT_*` codes — see [Error codes](#error-codes). | UX-only     |
 | `onWidgetError`      | `{ code, message }`                                        | A misconfig error fired before any trade existed (e.g. missing/invalid `sendoutAddress`). `code` is one of the `WIDGET_*` codes. | UX-only     |
+
+> **`tradeId` is the same value in every event that carries it** —
+> `onTradeStarted`, `onTradeCompleted` and all three `onSendout*` callbacks.
+> That is why `onTradeStarted` fires at acceptance rather than the moment the
+> user presses confirm: before a liquidity provider accepts, only a *request*
+> exists, and it has a different id.
+>
+> `tradeId` is a Unigox-internal id. It correlates the widget events with each
+> other; it is not the `order_id` your webhooks carry.
 
 ### Handle methods
 
