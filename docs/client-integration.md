@@ -24,7 +24,7 @@ auth events.
     fiat: "USD",
     amount: 100,
     onTradeCompleted: function (e) {
-      console.log("trade", e.tradeId);
+      console.log("trade", e.tradeId, "order", e.orderId);
     },
   });
 </script>
@@ -108,8 +108,8 @@ Pass these to `UnigoxWidget.init(options)`.
 | -------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ----------- |
 | `onReady`            | —                                                          | The widget finished its initial render.                                                    | UX-only     |
 | `onAuthChange`       | `{ isAuthenticated }`                                      | The user signs in or signs out, and once on mount with the settled state.                  | UX-only     |
-| `onTradeStarted`     | `{ tradeId, tradeType }`                                   | A liquidity provider accepted the user's request and the trade now exists.                 | Verify via API |
-| `onTradeCompleted`   | `{ tradeId }`                                              | A trade reached a terminal success.                                                        | Verify via API |
+| `onTradeStarted`     | `{ tradeId, tradeType, orderId? }`                         | A liquidity provider accepted the user's request and the trade now exists.                 | Verify via API |
+| `onTradeCompleted`   | `{ tradeId, orderId? }`                                    | A trade reached a terminal success.                                                        | Verify via API |
 | `onSendoutStarted`   | `{ tradeId, address, chainId }`                            | *(buy-with-sendout only)* The bridge to the partner address was submitted.                 | Verify via API |
 | `onSendoutCompleted` | `{ tradeId, address, chainId, txHash? }`                   | *(buy-with-sendout only)* The bridge confirmed on the destination chain.                   | `txHash` independently verifiable on-chain |
 | `onSendoutFailed`    | `{ tradeId, code, message }`                               | *(buy-with-sendout only)* The sendout step failed. `code` is one of the `SENDOUT_*` codes — see [Error codes](#error-codes). | UX-only     |
@@ -122,7 +122,25 @@ Pass these to `UnigoxWidget.init(options)`.
 > exists, and it has a different id.
 >
 > `tradeId` is a Unigox-internal id. It correlates the widget events with each
-> other; it is not the `order_id` your webhooks carry.
+> other; it is **not** the `order_id` your webhooks carry, and the partner API
+> will not accept it — `GET /partner/orders/{order_id}` validates the path
+> segment as a UUID and answers `400 invalid order_id format` for a numeric id.
+>
+> **`orderId` is the value to use against the partner API.** It is the same
+> `order_id` your webhooks carry, so `onTradeStarted` and `onTradeCompleted`
+> can be correlated directly with `GET /partner/orders/{order_id}` and with
+> your webhook stream.
+>
+> It is optional because a trade opened outside a partner widget has no partner
+> order behind it. Inside a widget session keyed to your `widgetKey` it is
+> always present — but read it defensively rather than asserting it, so a host
+> built today still runs against an older widget build.
+
+> **Widget orders are notify-only.** You can read them —
+> `GET /partner/orders/{order_id}` and `GET /partner/orders` both return them in
+> full — but partner *actions* on them (authorize-crypto-transfer, cancel, and
+> the rest) answer `404 ORDER_NOT_FOUND`. The crypto in a widget trade belongs
+> to the end user, while every partner action moves crypto from *your* wallet.
 
 ### Handle methods
 
@@ -273,8 +291,8 @@ speaks `window.postMessage`. Messages are tagged with
 | `UNIGOX_READY`            | —                                          |
 | `UNIGOX_RESIZE`           | `{ height: number }`                       |
 | `UNIGOX_AUTH_STATE`       | `{ isAuthenticated: boolean }`             |
-| `UNIGOX_TRADE_STARTED`    | `{ tradeId: number, tradeType: "BUY" \| "SELL" }` |
-| `UNIGOX_TRADE_COMPLETED`  | `{ tradeId: number }`                      |
+| `UNIGOX_TRADE_STARTED`    | `{ tradeId: number, tradeType: "BUY" \| "SELL", orderId?: string }` |
+| `UNIGOX_TRADE_COMPLETED`  | `{ tradeId: number, orderId?: string }`    |
 | `UNIGOX_SENDOUT_STARTED`  | `{ tradeId: number, address: string, chainId: number }` |
 | `UNIGOX_SENDOUT_COMPLETED`| `{ tradeId: number, address: string, chainId: number, txHash?: string }` |
 | `UNIGOX_SENDOUT_FAILED`   | `{ tradeId: number, code: SendoutErrorCode, message: string }` |
