@@ -37,8 +37,11 @@ export interface UnigoxOptions {
   height?: string;
   onReady?: () => void;
   onAuthChange?: (e: { isAuthenticated: boolean }) => void;
-  onTradeStarted?: (e: { tradeId: number; tradeType: "BUY" | "SELL" }) => void;
-  onTradeCompleted?: (e: { tradeId: number }) => void;
+  // orderId is the partner-facing order UUID — the only id GET /partner/orders/{order_id}
+  // accepts; it answers 400 to the numeric tradeId. Optional: a trade opened outside a
+  // partner widget has no partner order behind it.
+  onTradeStarted?: (e: { tradeId: number; tradeType: "BUY" | "SELL"; orderId?: string }) => void;
+  onTradeCompleted?: (e: { tradeId: number; orderId?: string }) => void;
   onSendoutStarted?: (e: { tradeId: number; address: string; chainId: number }) => void;
   onSendoutCompleted?: (e: { tradeId: number; address: string; chainId: number; txHash?: string }) => void;
   onSendoutFailed?: (e: {
