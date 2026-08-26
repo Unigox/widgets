@@ -12,6 +12,18 @@ The widget loader is currently on its first major version, served at
 
 ## [Unreleased]
 
+### Added
+
+- `onTradeStarted` and `onTradeCompleted` now carry `orderId` — the partner-facing
+  order UUID, the same `order_id` your webhooks carry. It is the value the partner
+  API accepts: `GET /partner/orders/{order_id}` validates the path segment as a
+  UUID and answers `400 invalid order_id format` for the numeric `tradeId`, so
+  before this there was no identifier a host could carry from a widget callback to
+  a partner API call, and no way to obtain one.
+
+  `orderId` is optional — a trade opened outside a partner widget has no partner
+  order behind it — so read it defensively rather than asserting it.
+
 ### Fixed
 
 - `onTradeStarted`, `onTradeCompleted` and `onAuthChange` now actually fire.
