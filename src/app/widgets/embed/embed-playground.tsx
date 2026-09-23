@@ -61,6 +61,8 @@ const sendoutNetworkCatalog: SendoutNetwork[] = [
   { ticker: "bsc", chainId: 56, name: "BNB Smart Chain" },
   { ticker: "hyperevm", chainId: 999, name: "HyperEVM" },
   { ticker: "solana", chainId: 1151111081099710, name: "Solana" },
+  { ticker: "tron", chainId: 728126428, name: "Tron" },
+  { ticker: "ton", chainId: 69696969420, name: "TON" },
 ]
 
 interface BridgeChain {
@@ -349,7 +351,7 @@ export function EmbedPlayground() {
                   <Input
                     value={config.sendoutAddress}
                     onChange={e => update("sendoutAddress", e.target.value)}
-                    placeholder="0x… (EVM) or Solana base58"
+                    placeholder="0x… (EVM), Solana base58, Tron T… or TON EQ…/UQ…"
                   />
                 </Field>
                 <Field label="Sendout network">

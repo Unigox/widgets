@@ -76,8 +76,8 @@ Pass these to `UnigoxWidget.init(options)`.
 | `partner`           | `string`                                  | no       | —             | Free-form attribution identifier — any string you want to see in your reports. Not validated. Optional.                   |
 | `ref`               | `string`                                  | no       | —             | Your Unigox username. New signups initiated inside the widget are credited to this user (referral). Use this for no-integration deployments — paste your username and earn referrals from anyone who signs up via the widget on your site. |
 | `type`              | `"buy" \| "sell" \| "buy-sell" \| "buy-with-sendout"` | no | `"buy-sell"`  | Which side opens first. `"buy-sell"` shows the full buy/sell toggle. `"buy-with-sendout"` adds an automatic sendout step — see below. `"both"` is still accepted as an alias for `"buy-sell"` for back-compat. |
-| `sendoutAddress`    | `string`                                  | conditional | —          | **Required when `type=buy-with-sendout`.** Destination address the purchased crypto is sent to after the trade (EVM `0x…` or Solana base58). |
-| `sendoutNetwork`    | `string`                                  | conditional | —          | **Required when `type=buy-with-sendout`.** Destination network as a blockchain ticker or name. Accepted values: `"ethereum"` / `"eth"`, `"optimism"` / `"op"`, `"polygon"` / `"pol"`, `"unichain"` / `"uni"`, `"base"`, `"arbitrum"` / `"arb"`, `"avalanche"` / `"avax"`, `"hyperevm"` / `"hype"`, `"solana"` / `"sol"`. Numeric chain ids are not accepted. |
+| `sendoutAddress`    | `string`                                  | conditional | —          | **Required when `type=buy-with-sendout`.** Destination address the purchased crypto is sent to after the trade (EVM `0x…`, Solana base58, Tron `T…` base58 or TON `EQ…`/`UQ…`). |
+| `sendoutNetwork`    | `string`                                  | conditional | —          | **Required when `type=buy-with-sendout`.** Destination network as a blockchain ticker or name. Accepted values: `"ethereum"` / `"eth"`, `"optimism"` / `"op"`, `"polygon"` / `"pol"`, `"unichain"` / `"uni"`, `"base"`, `"arbitrum"` / `"arb"`, `"avalanche"` / `"avax"`, `"hyperevm"` / `"hype"`, `"solana"` / `"sol"`, `"tron"` / `"trx"` / `"trc20"`, `"ton"` / `"toncoin"`. Numeric chain ids are not accepted. |
 | `crypto`            | `string`                                  | no       | auto          | Pre-selected crypto ticker (e.g. `"USDT"`, `"BTC"`, `"ETH"`). Falls back to USDT or the user's balance.                   |
 | `fiat`              | `string`                                  | no       | auto          | Pre-selected fiat code (e.g. `"USD"`, `"EUR"`, `"VND"`). Falls back to the user's country currency.                       |
 | `amount`            | `number`                                  | no       | —             | Pre-filled amount. For `type=buy` this is the **fiat** side ("You spend"); for `type=sell` it is the **crypto** side.     |
@@ -324,7 +324,7 @@ partner-configured external address over our existing bridge relay.
     partner: "acme",
     type: "buy-with-sendout",
     sendoutAddress: "0xAbCdEf0123456789abcdef0123456789AbCdEf01",
-    sendoutNetwork: "ethereum", // also "eth", "polygon"/"pol", "optimism"/"op", "unichain"/"uni", "base", "arbitrum"/"arb", "avalanche"/"avax", "hyperevm"/"hype", "solana"/"sol"
+    sendoutNetwork: "ethereum", // also "eth", "polygon"/"pol", "optimism"/"op", "unichain"/"uni", "base", "arbitrum"/"arb", "avalanche"/"avax", "hyperevm"/"hype", "solana"/"sol", "tron"/"trx", "ton"
     crypto: "USDC",
     fiat: "USD",
     amount: 100,
@@ -357,7 +357,7 @@ partner-configured external address over our existing bridge relay.
 - `sendoutNetwork` must be a ticker the widget recognises (`ethereum` / `eth`,
   `optimism` / `op`, `polygon` / `pol`, `unichain` / `uni`, `base`,
   `arbitrum` / `arb`, `avalanche` / `avax`, `hyperevm` / `hype`,
-  `solana` / `sol`) **and** the resulting chain must be supported by the
+  `solana` / `sol`, `tron` / `trx` / `trc20`, `ton` / `toncoin`) **and** the resulting chain must be supported by the
   Unigox bridge for the chosen `crypto`. Unsupported combinations render a
   "Sendout misconfigured" screen inside the widget. Unknown tickers render a
   "Missing required `sendoutNetwork` parameter." configuration error.
@@ -415,7 +415,7 @@ a "Widget misconfigured" screen so end-users see something coherent.
 | ----------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | `WIDGET_MISSING_SENDOUT_ADDRESS`    | `type=buy-with-sendout` was used without `sendoutAddress`.                            | Re-init with a non-empty `sendoutAddress`.                          |
 | `WIDGET_MISSING_SENDOUT_NETWORK`    | `type=buy-with-sendout` was used without `sendoutNetwork`, or the ticker is unknown.  | Re-init with a recognised ticker (see [`sendoutNetwork`](#init-options)). |
-| `WIDGET_INVALID_SENDOUT_ADDRESS`    | `sendoutAddress` does not match the chosen network's format (bad EIP-55 checksum on EVM, or non-base58 on Solana). | Re-init with an address valid for the chosen `sendoutNetwork`. |
+| `WIDGET_INVALID_SENDOUT_ADDRESS`    | `sendoutAddress` does not match the chosen network's format (bad EIP-55 checksum on EVM, non-base58 on Solana, bad base58check on Tron, or a non-canonical / testnet / non-basechain address on TON). | Re-init with an address valid for the chosen `sendoutNetwork`. |
 
 ### `SENDOUT_*` — `onSendoutFailed({ tradeId, code, message })`
 
