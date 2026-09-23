@@ -61,7 +61,7 @@ const sendoutNetworkCatalog: SendoutNetwork[] = [
   { ticker: "bsc", chainId: 56, name: "BNB Smart Chain" },
   { ticker: "hyperevm", chainId: 999, name: "HyperEVM" },
   { ticker: "solana", chainId: 1151111081099710, name: "Solana" },
-  { ticker: "tron", chainId: 728126428, name: "Tron" },
+  { ticker: "tron", chainId: 728126428, name: "TRON" },
   { ticker: "ton", chainId: 69696969420, name: "TON" },
 ]
 
