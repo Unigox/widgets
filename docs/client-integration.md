@@ -324,7 +324,7 @@ partner-configured external address over our existing bridge relay.
     partner: "acme",
     type: "buy-with-sendout",
     sendoutAddress: "0xAbCdEf0123456789abcdef0123456789AbCdEf01",
-    sendoutNetwork: "ethereum", // also "eth", "polygon"/"pol", "optimism"/"op", "unichain"/"uni", "base", "arbitrum"/"arb", "avalanche"/"avax", "hyperevm"/"hype", "solana"/"sol", "tron"/"trx", "ton"
+    sendoutNetwork: "ethereum", // also "eth", "polygon"/"pol", "optimism"/"op", "unichain"/"uni", "base", "arbitrum"/"arb", "avalanche"/"avax", "hyperevm"/"hype", "solana"/"sol", "tron"/"trx"/"trc20", "ton"/"toncoin"
     crypto: "USDC",
     fiat: "USD",
     amount: 100,
