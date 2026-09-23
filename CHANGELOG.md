@@ -14,6 +14,16 @@ The widget loader is currently on its first major version, served at
 
 ### Added
 
+- `sendoutNetwork` accepts `"tron"` / `"trx"` / `"trc20"` and `"ton"` / `"toncoin"`.
+  `sendoutAddress` is validated per network: Tron as a base58check `T…` address,
+  TON as a raw `0:<hex>` or canonical `EQ…` / `UQ…` basechain address (testnet-only
+  and masterchain addresses are refused). Whether either network is actually
+  offered is still decided at runtime from the bridge catalog
+  (`enabled_for_withdrawal`), so an unsupported combination renders the existing
+  "Sendout misconfigured" screen. Solana validation is tightened to a 32-byte
+  public key: a Tron address is also base58 and 34 characters long and used to
+  pass as Solana.
+
 - `onTradeStarted` and `onTradeCompleted` now carry `orderId` — the partner-facing
   order UUID, the same `order_id` your webhooks carry. It is the value the partner
   API accepts: `GET /partner/orders/{order_id}` validates the path segment as a
