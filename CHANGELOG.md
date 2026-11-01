@@ -50,6 +50,14 @@ The widget loader is currently on its first major version, served at
     that mounts the widget for an already-signed-in user does not have to
     wait for a sign-out to learn it.
 
+- Integration guide, buy-with-sendout behaviour: the sendout view was
+  described as showing a quote breakdown and needing a single confirm click.
+  It shows amount, network and destination only, and it submits on its own
+  when the account has no bridge PIN or TOTP; with PIN or TOTP enabled the
+  user enters the code and presses **Confirm send**. Fees and the tx hash are
+  not shown in the widget; the tx hash arrives on `onSendoutCompleted`. Widget
+  behaviour is unchanged; only the documentation was wrong.
+
 ### Added
 
 - `sendoutNetwork` now accepts Unichain (`unichain` / `uni`), Avalanche

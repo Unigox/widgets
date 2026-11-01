@@ -341,11 +341,17 @@ partner-configured external address over our existing bridge relay.
 - After the trade reaches terminal success and the purchased crypto lands in
   the user's internal Unigox wallet, the widget auto-navigates to the
   sendout view (~1.5 s after completion).
-- The sendout view shows a locked amount (matching the trade result), the
-  destination, an expandable quote breakdown, and — if the account has it
-  enabled — inline 2FA fields. The user confirms with a single click.
-- Bridge progress, fees and final tx hash are shown inline. The host is
-  notified via `onSendoutStarted / onSendoutCompleted / onSendoutFailed`.
+- The sendout view shows the locked amount (matching the trade result), the
+  network and the destination address. It shows no fee or quote breakdown.
+- If the account has no bridge PIN or TOTP enabled, the sendout submits on
+  its own as soon as the bridge quote is ready; the user does not click
+  anything. If the account requires a bridge PIN or TOTP, the view shows
+  those fields inline and the user enters the code and presses
+  **Confirm send**.
+- Bridge progress is shown inline, ending in a completed, refunded or failed
+  state. Fees and the final tx hash are not shown in the widget; the tx hash
+  reaches the host as `txHash` on `onSendoutCompleted`. The host is notified
+  via `onSendoutStarted / onSendoutCompleted / onSendoutFailed`.
 
 ### Requirements & constraints
 
