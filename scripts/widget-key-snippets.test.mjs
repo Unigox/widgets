@@ -36,3 +36,17 @@ test("unkeyed previews stay unkeyed; quotes in an entered key cannot break JavaS
   vm.runInNewContext(snippet.match(/<script>\n([\s\S]*?)<\/script>/)[1], { UnigoxWidget: { init: options => { received = options; } } });
   assert.equal(received.widgetKey, key);
 });
+
+test("HTML script delimiters in an entered key cannot terminate the inline script", () => {
+  for (const key of ['</script><script>alert(1)</script>', '</ScRiPt >', '<!--<script>', 'key<value']) {
+    const snippet = context.buildInitSnippet({ ...config, widgetKey: key });
+    // HTML parses script raw text before JavaScript; even a quoted end tag closes it.
+    assert.equal([...snippet.matchAll(/<\/script\b/gi)].length, 2);
+    const inline = snippet.match(/<script>\n([\s\S]*?)<\/script>/)[1];
+    assert.equal(inline.includes('<'), false);
+    let received;
+    vm.runInNewContext(inline, { UnigoxWidget: { init: options => { received = options; } } });
+    assert.equal(received.widgetKey, key);
+    assert.equal(new URL(context.buildUrl({ ...config, widgetKey: key })).searchParams.get('widget_key'), key);
+  }
+});

@@ -231,7 +231,7 @@ function scriptOrigin(baseUrl: string): string {
 
 function buildInitSnippet(config: Config): string {
   const opts: string[] = [`container: "#unigox-widget"`]
-  if (config.widgetKey) opts.push(`widgetKey: ${JSON.stringify(config.widgetKey)}`)
+  if (config.widgetKey) opts.push(`widgetKey: ${JSON.stringify(config.widgetKey).replace(/</g, "\\u003c")}`)
   if (config.partner) opts.push(`partner: "${config.partner}"`)
   if (config.ref) opts.push(`ref: "${config.ref}"`)
   const typeValue = typeParamValue(config.type)
