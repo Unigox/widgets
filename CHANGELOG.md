@@ -160,3 +160,8 @@ The widget loader is currently on its first major version, served at
   strict CSP, explicit `script-src https://unigox.com` directive (was
   missing — `widget.js` would not load on strict-CSP sites), and per-feature
   tables explaining what breaks without each directive.
+
+## Unreleased — personal widget keys
+
+- The embed playground now includes a public widget key in both iframe URLs and loader snippets.
+- Documented personal widget configuration, independent API fee settings, key replacement, and optional partner order identifiers.
