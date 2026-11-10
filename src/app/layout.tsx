@@ -1,12 +1,19 @@
 import type { Metadata } from "next";
-import { Roboto } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
 
-const roboto = Roboto({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "700"],
+// Bundle Roboto so builds do not depend on Google CSS or its generated font loader.
+const roboto = localFont({
   variable: "--font-roboto",
+  display: "swap",
+  src: [
+    { path: "../../public/fonts/Roboto-300-latin.woff2", weight: "300", style: "normal" },
+    { path: "../../public/fonts/Roboto-400-latin.woff2", weight: "400", style: "normal" },
+    { path: "../../public/fonts/Roboto-500-latin.woff2", weight: "500", style: "normal" },
+    { path: "../../public/fonts/Roboto-700-latin.woff2", weight: "700", style: "normal" },
+  ],
+  fallback: ["Arial", "Helvetica", "sans-serif"],
+  adjustFontFallback: "Arial",
 });
 
 const parkinsans = localFont({
