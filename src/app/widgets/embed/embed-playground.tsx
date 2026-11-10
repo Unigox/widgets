@@ -138,6 +138,7 @@ interface Config {
   type: EmbedType
   theme: EmbedTheme
   language: EmbedLanguage
+  widgetKey: string
   partner: string
   ref: string
   email: string
@@ -163,6 +164,7 @@ const defaultConfig: Config = {
   type: "buy-sell",
   theme: "light",
   language: "en",
+  widgetKey: "",
   partner: "",
   ref: "",
   email: "",
@@ -204,6 +206,7 @@ function buildUrl(config: Config): string {
   if (config.theme) params.set("theme", config.theme)
   if (config.language && config.language !== "en")
     params.set("language", config.language)
+  if (config.widgetKey) params.set("widget_key", config.widgetKey)
   if (config.partner) params.set("partner", config.partner)
   if (config.ref) params.set("ref", config.ref)
   if (config.email) params.set("email", config.email)
@@ -228,6 +231,7 @@ function scriptOrigin(baseUrl: string): string {
 
 function buildInitSnippet(config: Config): string {
   const opts: string[] = [`container: "#unigox-widget"`]
+  if (config.widgetKey) opts.push(`widgetKey: ${JSON.stringify(config.widgetKey).replace(/</g, "\\u003c")}`)
   if (config.partner) opts.push(`partner: "${config.partner}"`)
   if (config.ref) opts.push(`ref: "${config.ref}"`)
   const typeValue = typeParamValue(config.type)
@@ -490,6 +494,10 @@ export function EmbedPlayground() {
           </ConfigSection>
 
           <ConfigSection title="Attribution & referral">
+            <Field label="Public widget key (optional)">
+              <Input value={config.widgetKey} onChange={e => update("widgetKey", e.target.value)} placeholder="uw1_… or your existing widget key" />
+            </Field>
+            <p className="text-xs text-muted-foreground">Use the public key from your widget settings. Never enter an API key. Partner labels and referrals do not set fees.</p>
             <Field label="Partner identifier (free-form, optional)">
               <Input
                 value={config.partner}

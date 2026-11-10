@@ -492,3 +492,12 @@ updated alongside.
   reuse issues.
 - Use the [playground](https://widgets.unigox.app) to reproduce regressions
   with a configurable config panel before filing an issue.
+
+
+## Personal widget fees (controlled rollout)
+
+Where available, sign in to Unigox and open `/widget-settings` to configure your personal widget. Use the generated public `widgetKey` (`uw1_…`) in the loader or `widget_key` in the iframe URL. The playground supports both personal and existing company widget keys. Never enter an API key into the playground or a browser embed.
+
+The server owns the fee and receiving address. Neither a free-form `partner` label nor `ref` sets a fee. Personal settings do not change partner API quote fees, API payout destinations, API keys, or existing company widgets. Existing company keys stay managed through the partner dashboard until an explicit migration.
+
+A changed policy between quote and creation requires the customer to review a new quote. Replacing a key disables new exchanges through old embeds; update your website. Already accepted exchanges keep their snapshot. Personal keys do not grant partner order API access; `orderId` is optional, and host events are not proof of payment. Do not subtract fees from the server-reported sendout amount again.
