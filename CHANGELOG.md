@@ -14,6 +14,52 @@ The widget loader is currently on its first major version, served at
 
 ### Added
 
+- `sendoutNetwork` accepts `"tron"` / `"trx"` / `"trc20"` and `"ton"` / `"toncoin"`.
+  `sendoutAddress` is validated per network: Tron as a base58check `T…` address,
+  TON as a raw `0:<hex>` or canonical `EQ…` / `UQ…` basechain address (testnet-only
+  and masterchain addresses are refused). Whether either network is actually
+  offered is still decided at runtime from the bridge catalog
+  (`enabled_for_withdrawal`), so an unsupported combination renders the existing
+  "Sendout misconfigured" screen. Solana validation is tightened to a 32-byte
+  public key: a Tron address is also base58 and 34 characters long and used to
+  pass as Solana.
+
+- `onTradeStarted` and `onTradeCompleted` now carry `orderId` — the partner-facing
+  order UUID, the same `order_id` your webhooks carry. It is the value the partner
+  API accepts: `GET /partner/orders/{order_id}` validates the path segment as a
+  UUID and answers `400 invalid order_id format` for the numeric `tradeId`, so
+  before this there was no identifier a host could carry from a widget callback to
+  a partner API call, and no way to obtain one.
+
+  `orderId` is optional — a trade opened outside a partner widget has no partner
+  order behind it — so read it defensively rather than asserting it.
+
+### Fixed
+
+- `onTradeStarted`, `onTradeCompleted` and `onAuthChange` now actually fire.
+  They have been documented and wired in the loader since the first release,
+  but the widget never emitted the underlying `UNIGOX_TRADE_STARTED`,
+  `UNIGOX_TRADE_COMPLETED` and `UNIGOX_AUTH_STATE` messages, so a host page
+  only ever received `onReady` and the sendout events. No integration change
+  is needed — handlers already registered start receiving events.
+  - `onTradeStarted` fires when a liquidity provider accepts and the trade
+    exists, not the moment the user presses confirm. `tradeId` is then the
+    same value `onTradeCompleted` and the `onSendout*` events carry; before
+    acceptance only a *request* exists, under a different id.
+  - `onAuthChange` also fires once on mount with the settled state, so a host
+    that mounts the widget for an already-signed-in user does not have to
+    wait for a sign-out to learn it.
+
+- Integration guide, buy-with-sendout behaviour: the sendout view was
+  described as showing a quote breakdown and needing a single confirm click.
+  It shows amount, network and destination only, and it submits on its own
+  when the account has no bridge PIN or TOTP; with PIN or TOTP enabled the
+  user enters the code and presses **Confirm send**. Fees and the tx hash are
+  not shown in the widget; the tx hash arrives on `onSendoutCompleted`. Widget
+  behaviour is unchanged; only the documentation was wrong.
+
+### Added
+
 - `sendoutNetwork` now accepts Unichain (`unichain` / `uni`), Avalanche
   (`avalanche` / `avax`), HyperEVM (`hyperevm` / `hype`) and Solana
   (`solana` / `sol`) in addition to the existing Ethereum, Optimism, Polygon,

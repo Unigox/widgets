@@ -24,7 +24,7 @@ auth events.
     fiat: "USD",
     amount: 100,
     onTradeCompleted: function (e) {
-      console.log("trade", e.tradeId);
+      console.log("trade", e.tradeId, "order", e.orderId);
     },
   });
 </script>
@@ -76,8 +76,8 @@ Pass these to `UnigoxWidget.init(options)`.
 | `partner`           | `string`                                  | no       | —             | Free-form attribution identifier — any string you want to see in your reports. Not validated. Optional.                   |
 | `ref`               | `string`                                  | no       | —             | Your Unigox username. New signups initiated inside the widget are credited to this user (referral). Use this for no-integration deployments — paste your username and earn referrals from anyone who signs up via the widget on your site. |
 | `type`              | `"buy" \| "sell" \| "buy-sell" \| "buy-with-sendout"` | no | `"buy-sell"`  | Which side opens first. `"buy-sell"` shows the full buy/sell toggle. `"buy-with-sendout"` adds an automatic sendout step — see below. `"both"` is still accepted as an alias for `"buy-sell"` for back-compat. |
-| `sendoutAddress`    | `string`                                  | conditional | —          | **Required when `type=buy-with-sendout`.** Destination address the purchased crypto is sent to after the trade (EVM `0x…` or Solana base58). |
-| `sendoutNetwork`    | `string`                                  | conditional | —          | **Required when `type=buy-with-sendout`.** Destination network as a blockchain ticker or name. Accepted values: `"ethereum"` / `"eth"`, `"optimism"` / `"op"`, `"polygon"` / `"pol"`, `"unichain"` / `"uni"`, `"base"`, `"arbitrum"` / `"arb"`, `"avalanche"` / `"avax"`, `"hyperevm"` / `"hype"`, `"solana"` / `"sol"`. Numeric chain ids are not accepted. |
+| `sendoutAddress`    | `string`                                  | conditional | —          | **Required when `type=buy-with-sendout`.** Destination address the purchased crypto is sent to after the trade (EVM `0x…`, Solana base58, Tron `T…` base58 or TON `EQ…`/`UQ…`). |
+| `sendoutNetwork`    | `string`                                  | conditional | —          | **Required when `type=buy-with-sendout`.** Destination network as a blockchain ticker or name. Accepted values: `"ethereum"` / `"eth"`, `"optimism"` / `"op"`, `"polygon"` / `"pol"`, `"unichain"` / `"uni"`, `"base"`, `"arbitrum"` / `"arb"`, `"avalanche"` / `"avax"`, `"hyperevm"` / `"hype"`, `"solana"` / `"sol"`, `"tron"` / `"trx"` / `"trc20"`, `"ton"` / `"toncoin"`. Numeric chain ids are not accepted. |
 | `crypto`            | `string`                                  | no       | auto          | Pre-selected crypto ticker (e.g. `"USDT"`, `"BTC"`, `"ETH"`). Falls back to USDT or the user's balance.                   |
 | `fiat`              | `string`                                  | no       | auto          | Pre-selected fiat code (e.g. `"USD"`, `"EUR"`, `"VND"`). Falls back to the user's country currency.                       |
 | `amount`            | `number`                                  | no       | —             | Pre-filled amount. For `type=buy` this is the **fiat** side ("You spend"); for `type=sell` it is the **crypto** side.     |
@@ -107,13 +107,40 @@ Pass these to `UnigoxWidget.init(options)`.
 | Callback             | Payload                                                    | Fires when                                                                                 | Verifiable? |
 | -------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ----------- |
 | `onReady`            | —                                                          | The widget finished its initial render.                                                    | UX-only     |
-| `onAuthChange`       | `{ isAuthenticated }`                                      | The user signs in or signs out.                                                            | UX-only     |
-| `onTradeStarted`     | `{ tradeId, tradeType }`                                   | The user confirmed a trade.                                                                | Verify via API |
-| `onTradeCompleted`   | `{ tradeId }`                                              | A trade reached a terminal success.                                                        | Verify via API |
+| `onAuthChange`       | `{ isAuthenticated }`                                      | The user signs in or signs out, and once on mount with the settled state.                  | UX-only     |
+| `onTradeStarted`     | `{ tradeId, tradeType, orderId? }`                         | A liquidity provider accepted the user's request and the trade now exists.                 | Verify via API |
+| `onTradeCompleted`   | `{ tradeId, orderId? }`                                    | A trade reached a terminal success.                                                        | Verify via API |
 | `onSendoutStarted`   | `{ tradeId, address, chainId }`                            | *(buy-with-sendout only)* The bridge to the partner address was submitted.                 | Verify via API |
 | `onSendoutCompleted` | `{ tradeId, address, chainId, txHash? }`                   | *(buy-with-sendout only)* The bridge confirmed on the destination chain.                   | `txHash` independently verifiable on-chain |
 | `onSendoutFailed`    | `{ tradeId, code, message }`                               | *(buy-with-sendout only)* The sendout step failed. `code` is one of the `SENDOUT_*` codes — see [Error codes](#error-codes). | UX-only     |
 | `onWidgetError`      | `{ code, message }`                                        | A misconfig error fired before any trade existed (e.g. missing/invalid `sendoutAddress`). `code` is one of the `WIDGET_*` codes. | UX-only     |
+
+> **`tradeId` is the same value in every event that carries it** —
+> `onTradeStarted`, `onTradeCompleted` and all three `onSendout*` callbacks.
+> That is why `onTradeStarted` fires at acceptance rather than the moment the
+> user presses confirm: before a liquidity provider accepts, only a *request*
+> exists, and it has a different id.
+>
+> `tradeId` is a Unigox-internal id. It correlates the widget events with each
+> other; it is **not** the `order_id` your webhooks carry, and the partner API
+> will not accept it — `GET /partner/orders/{order_id}` validates the path
+> segment as a UUID and answers `400 invalid order_id format` for a numeric id.
+>
+> **`orderId` is the value to use against the partner API.** It is the same
+> `order_id` your webhooks carry, so `onTradeStarted` and `onTradeCompleted`
+> can be correlated directly with `GET /partner/orders/{order_id}` and with
+> your webhook stream.
+>
+> It is optional because a trade opened outside a partner widget has no partner
+> order behind it. Inside a widget session keyed to your `widgetKey` it is
+> always present — but read it defensively rather than asserting it, so a host
+> built today still runs against an older widget build.
+
+> **Widget orders are notify-only.** You can read them —
+> `GET /partner/orders/{order_id}` and `GET /partner/orders` both return them in
+> full — but partner *actions* on them (authorize-crypto-transfer, cancel, and
+> the rest) answer `404 ORDER_NOT_FOUND`. The crypto in a widget trade belongs
+> to the end user, while every partner action moves crypto from *your* wallet.
 
 ### Handle methods
 
@@ -264,8 +291,8 @@ speaks `window.postMessage`. Messages are tagged with
 | `UNIGOX_READY`            | —                                          |
 | `UNIGOX_RESIZE`           | `{ height: number }`                       |
 | `UNIGOX_AUTH_STATE`       | `{ isAuthenticated: boolean }`             |
-| `UNIGOX_TRADE_STARTED`    | `{ tradeId: number, tradeType: "BUY" \| "SELL" }` |
-| `UNIGOX_TRADE_COMPLETED`  | `{ tradeId: number }`                      |
+| `UNIGOX_TRADE_STARTED`    | `{ tradeId: number, tradeType: "BUY" \| "SELL", orderId?: string }` |
+| `UNIGOX_TRADE_COMPLETED`  | `{ tradeId: number, orderId?: string }`    |
 | `UNIGOX_SENDOUT_STARTED`  | `{ tradeId: number, address: string, chainId: number }` |
 | `UNIGOX_SENDOUT_COMPLETED`| `{ tradeId: number, address: string, chainId: number, txHash?: string }` |
 | `UNIGOX_SENDOUT_FAILED`   | `{ tradeId: number, code: SendoutErrorCode, message: string }` |
@@ -297,7 +324,7 @@ partner-configured external address over our existing bridge relay.
     partner: "acme",
     type: "buy-with-sendout",
     sendoutAddress: "0xAbCdEf0123456789abcdef0123456789AbCdEf01",
-    sendoutNetwork: "ethereum", // also "eth", "polygon"/"pol", "optimism"/"op", "unichain"/"uni", "base", "arbitrum"/"arb", "avalanche"/"avax", "hyperevm"/"hype", "solana"/"sol"
+    sendoutNetwork: "ethereum", // also "eth", "polygon"/"pol", "optimism"/"op", "unichain"/"uni", "base", "arbitrum"/"arb", "avalanche"/"avax", "hyperevm"/"hype", "solana"/"sol", "tron"/"trx"/"trc20", "ton"/"toncoin"
     crypto: "USDC",
     fiat: "USD",
     amount: 100,
@@ -314,11 +341,17 @@ partner-configured external address over our existing bridge relay.
 - After the trade reaches terminal success and the purchased crypto lands in
   the user's internal Unigox wallet, the widget auto-navigates to the
   sendout view (~1.5 s after completion).
-- The sendout view shows a locked amount (matching the trade result), the
-  destination, an expandable quote breakdown, and — if the account has it
-  enabled — inline 2FA fields. The user confirms with a single click.
-- Bridge progress, fees and final tx hash are shown inline. The host is
-  notified via `onSendoutStarted / onSendoutCompleted / onSendoutFailed`.
+- The sendout view shows the locked amount (matching the trade result), the
+  network and the destination address. It shows no fee or quote breakdown.
+- If the account has no bridge PIN or TOTP enabled, the sendout submits on
+  its own as soon as the bridge quote is ready; the user does not click
+  anything. If the account requires a bridge PIN or TOTP, the view shows
+  those fields inline and the user enters the code and presses
+  **Confirm send**.
+- Bridge progress is shown inline, ending in a completed, refunded or failed
+  state. Fees and the final tx hash are not shown in the widget; the tx hash
+  reaches the host as `txHash` on `onSendoutCompleted`. The host is notified
+  via `onSendoutStarted / onSendoutCompleted / onSendoutFailed`.
 
 ### Requirements & constraints
 
@@ -330,7 +363,7 @@ partner-configured external address over our existing bridge relay.
 - `sendoutNetwork` must be a ticker the widget recognises (`ethereum` / `eth`,
   `optimism` / `op`, `polygon` / `pol`, `unichain` / `uni`, `base`,
   `arbitrum` / `arb`, `avalanche` / `avax`, `hyperevm` / `hype`,
-  `solana` / `sol`) **and** the resulting chain must be supported by the
+  `solana` / `sol`, `tron` / `trx` / `trc20`, `ton` / `toncoin`) **and** the resulting chain must be supported by the
   Unigox bridge for the chosen `crypto`. Unsupported combinations render a
   "Sendout misconfigured" screen inside the widget. Unknown tickers render a
   "Missing required `sendoutNetwork` parameter." configuration error.
@@ -388,7 +421,7 @@ a "Widget misconfigured" screen so end-users see something coherent.
 | ----------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | `WIDGET_MISSING_SENDOUT_ADDRESS`    | `type=buy-with-sendout` was used without `sendoutAddress`.                            | Re-init with a non-empty `sendoutAddress`.                          |
 | `WIDGET_MISSING_SENDOUT_NETWORK`    | `type=buy-with-sendout` was used without `sendoutNetwork`, or the ticker is unknown.  | Re-init with a recognised ticker (see [`sendoutNetwork`](#init-options)). |
-| `WIDGET_INVALID_SENDOUT_ADDRESS`    | `sendoutAddress` does not match the chosen network's format (bad EIP-55 checksum on EVM, or non-base58 on Solana). | Re-init with an address valid for the chosen `sendoutNetwork`. |
+| `WIDGET_INVALID_SENDOUT_ADDRESS`    | `sendoutAddress` does not match the chosen network's format (bad EIP-55 checksum on EVM, non-base58 on Solana, bad base58check on Tron, or a non-canonical / testnet / non-basechain address on TON). | Re-init with an address valid for the chosen `sendoutNetwork`. |
 
 ### `SENDOUT_*` — `onSendoutFailed({ tradeId, code, message })`
 
